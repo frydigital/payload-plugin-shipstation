@@ -39,7 +39,6 @@ export const ShippingSettings: GlobalConfig = {
             {
               name: 'apiKey',
               type: 'text',
-              required: true,
               admin: {
                 description: 'Your ShipStation API key (stored securely)',
                 readOnly: true,
@@ -49,7 +48,6 @@ export const ShippingSettings: GlobalConfig = {
             {
               name: 'warehouseId',
               type: 'text',
-              required: true,
               admin: {
                 description: 'Default warehouse ID for shipments',
                 placeholder: 'se-123456',
@@ -81,7 +79,6 @@ export const ShippingSettings: GlobalConfig = {
                 {
                   name: 'carrierId',
                   type: 'text',
-                  required: true,
                   admin: {
                     placeholder: 'se-123456',
                     description: 'ShipStation carrier ID',
@@ -90,7 +87,6 @@ export const ShippingSettings: GlobalConfig = {
                 {
                   name: 'carrierCode',
                   type: 'text',
-                  required: true,
                   admin: {
                     placeholder: 'canada_post',
                   },
@@ -98,7 +94,6 @@ export const ShippingSettings: GlobalConfig = {
                 {
                   name: 'carrierName',
                   type: 'text',
-                  required: true,
                   admin: {
                     placeholder: 'Canada Post',
                   },
@@ -121,7 +116,6 @@ export const ShippingSettings: GlobalConfig = {
                 {
                   name: 'serviceCode',
                   type: 'text',
-                  required: true,
                   admin: {
                     placeholder: 'canada_post_regular_parcel',
                   },
@@ -129,7 +123,6 @@ export const ShippingSettings: GlobalConfig = {
                 {
                   name: 'serviceName',
                   type: 'text',
-                  required: true,
                   admin: {
                     placeholder: 'Regular Parcel',
                   },
@@ -154,7 +147,6 @@ export const ShippingSettings: GlobalConfig = {
                 {
                   name: 'province',
                   type: 'select',
-                  required: true,
                   options: [
                     { label: 'British Columbia', value: 'BC' },
                     { label: 'Alberta', value: 'AB' },
@@ -174,7 +166,6 @@ export const ShippingSettings: GlobalConfig = {
                 {
                   name: 'baseRate',
                   type: 'number',
-                  required: true,
                   admin: {
                     description: 'Rate in cents (e.g., 1000 = $10.00)',
                     placeholder: '1000',
