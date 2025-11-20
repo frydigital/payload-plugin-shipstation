@@ -1,4 +1,4 @@
-# @cedarroutes/payload-plugin-shipstation
+# @frydigital/payload-plugin-shipstation
 
 A comprehensive ShipStation integration plugin for Payload CMS ecommerce projects. Provides real-time shipping rate calculation, address validation, multi-package handling, and webhook support for tracking updates.
 
@@ -24,21 +24,21 @@ A comprehensive ShipStation integration plugin for Payload CMS ecommerce project
 
 ### 1. Install from GitHub Packages
 
-First, configure npm to use GitHub Packages for the `@cedarroutes` scope. Create or update `.npmrc`:
+First, configure npm to use GitHub Packages for the `@frydigital` scope. Create or update `.npmrc`:
 
 ```
-@cedarroutes:registry=https://npm.pkg.github.com
+@frydigital:registry=https://npm.pkg.github.com
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
 Then install the plugin:
 
 ```bash
-pnpm add @cedarroutes/payload-plugin-shipstation
+pnpm add @frydigital/payload-plugin-shipstation
 # or
-npm install @cedarroutes/payload-plugin-shipstation
+npm install @frydigital/payload-plugin-shipstation
 # or
-yarn add @cedarroutes/payload-plugin-shipstation
+yarn add @frydigital/payload-plugin-shipstation
 ```
 
 ### 2. Environment Variables
@@ -64,7 +64,7 @@ Add the plugin to your Payload configuration:
 
 ```typescript
 // payload.config.ts
-import { shipStationPlugin } from '@cedarroutes/payload-plugin-shipstation'
+import { shipStationPlugin } from '@frydigital/payload-plugin-shipstation'
 
 export default buildConfig({
   plugins: [

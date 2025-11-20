@@ -1,5 +1,5 @@
 {
-  "name": "@cedarroutes/payload-plugin-shipstation",
+  "name": "@frydigital/payload-plugin-shipstation",
   "version": "0.1.0",
   "description": "ShipStation integration plugin for Payload CMS ecommerce",
   "main": "./dist/index.js",
@@ -14,8 +14,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/arbutusroutes/cedarroutes.git",
-    "directory": "packages/payload-plugin-shipstation"
+    "url": "https://github.com/frydigital/payload-plugin-shipstation.git"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
