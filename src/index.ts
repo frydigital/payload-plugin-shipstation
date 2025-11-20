@@ -3,8 +3,10 @@ import type { ShipStationPluginOptions } from './types'
 import { ShippingSettings } from './globals/ShippingSettings'
 import { getProductsOverride } from './collections/productsOverride'
 import { getVariantsOverride } from './collections/variantsOverride'
+import { getOrdersOverride } from './collections/ordersOverride'
 import { createRateCache } from './utilities/cache'
 import { ShipStationClient } from './api/shipstation'
+import { getShippingEndpoints } from './endpoints'
 
 /**
  * ShipStation Shipping Plugin for Payload CMS
@@ -64,7 +66,7 @@ export const shipStationPlugin =
       ShippingSettings,
     ]
 
-    // Extend Products and Variants collections with shipping fields
+    // Extend Products, Variants, and Orders collections with shipping fields
     if (config.collections) {
       config.collections = config.collections.map((collection) => {
         if (collection.slug === 'products') {
@@ -89,15 +91,26 @@ export const shipStationPlugin =
           }
         }
         
+        if (collection.slug === 'orders') {
+          const ordersOverride = getOrdersOverride()
+          return {
+            ...collection,
+            fields: [
+              ...collection.fields,
+              ...(ordersOverride.fields || []),
+            ],
+          }
+        }
+        
         return collection
       })
     }
 
-    // TODO: Add custom endpoints
-    // config.endpoints = [
-    //   ...(config.endpoints || []),
-    //   ...getShippingEndpoints(pluginOptions),
-    // ]
+    // Add custom endpoints
+    config.endpoints = [
+      ...(config.endpoints || []),
+      ...getShippingEndpoints(),
+    ]
 
     // Initialize cache and API client on Payload init
     config.onInit = async (payload) => {
