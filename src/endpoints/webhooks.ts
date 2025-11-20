@@ -1,6 +1,6 @@
+import crypto from 'crypto'
 import type { Endpoint } from 'payload'
 import type { WebhookEvent } from '../types'
-import crypto from 'crypto'
 
 function verifyWebhookSignature(
   payload: string,

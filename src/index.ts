@@ -1,12 +1,12 @@
 import type { Config, Plugin } from 'payload'
-import type { ShipStationPluginOptions } from './types'
-import { ShippingSettings } from './globals/ShippingSettings'
+import { ShipStationClient } from './api/shipstation'
+import { getOrdersOverride } from './collections/ordersOverride'
 import { getProductsOverride } from './collections/productsOverride'
 import { getVariantsOverride } from './collections/variantsOverride'
-import { getOrdersOverride } from './collections/ordersOverride'
-import { createRateCache } from './utilities/cache'
-import { ShipStationClient } from './api/shipstation'
 import { getShippingEndpoints } from './endpoints'
+import { ShippingSettings } from './globals/ShippingSettings'
+import type { ShipStationPluginOptions } from './types'
+import { createRateCache } from './utilities/cache'
 
 /**
  * ShipStation Shipping Plugin for Payload CMS
@@ -171,3 +171,4 @@ export const shipStationPlugin =
 
 // Re-export types for consumers
 export * from './types'
+
