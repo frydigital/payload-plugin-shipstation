@@ -24,15 +24,6 @@ A comprehensive ShipStation integration plugin for Payload CMS ecommerce project
 
 ### 1. Install from GitHub Packages
 
-First, configure npm to use GitHub Packages for the `@frydigital` scope. Create or update `.npmrc`:
-
-```
-@frydigital:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-```
-
-Then install the plugin:
-
 ```bash
 pnpm add @frydigital/payload-plugin-shipstation
 # or

@@ -2,9 +2,6 @@
   "name": "@frydigital/payload-plugin-shipstation",
   "version": "0.1.0",
   "description": "ShipStation integration plugin for Payload CMS ecommerce",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "license": "MIT",
   "keywords": [
     "payload",
     "payload-plugin",
@@ -12,13 +9,24 @@
     "shipping",
     "ecommerce"
   ],
+  "homepage": "https://github.com/frydigital/payload-plugin-shipstation#readme",
+  "bugs": {
+    "url": "https://github.com/frydigital/payload-plugin-shipstation/issues"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/frydigital/payload-plugin-shipstation.git"
+    "url": "git+https://github.com/frydigital/payload-plugin-shipstation.git"
   },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
+  "license": "MIT",
+  "author": "Shaun Fry",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -27,14 +35,6 @@
     "lint": "eslint src --ext .ts",
     "prepublishOnly": "pnpm run clean && pnpm run build"
   },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "peerDependencies": {
-    "payload": "^3.0.0"
-  },
   "dependencies": {
     "ioredis": "^5.4.1",
     "date-fns": "^4.1.0"
@@ -42,5 +42,8 @@
   "devDependencies": {
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2"
+  },
+  "peerDependencies": {
+    "payload": "^3.0.0"
   }
 }
