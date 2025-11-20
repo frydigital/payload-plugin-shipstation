@@ -372,8 +372,8 @@ MIT License - see LICENSE file for details
 
 - Documentation: [Full docs coming soon]
 - Issues: [GitHub Issues](https://github.com/frydigital/payload-plugin-shipstation/issues)
-- Discussions: [GitHub Discussions](https://github.com/frydigital/cedarroutes/discussions)
+- Discussions: [GitHub Discussions](https://github.com/frydigital/payload-plugin-shipstation/discussions)
 
 ## Credits
 
-Built with ❤️ by Cedar Routes for the Payload CMS community.
+Built with ❤️ for the Payload CMS community.
