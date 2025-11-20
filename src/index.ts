@@ -1,10 +1,14 @@
 import type { Config, Plugin } from 'payload'
 import type { ShipStationPluginOptions } from './types'
 import { ShippingSettings } from './globals/ShippingSettings'
+import { getProductsOverride } from './collections/productsOverride'
+import { getVariantsOverride } from './collections/variantsOverride'
+import { createRateCache } from './utilities/cache'
+import { ShipStationClient } from './api/shipstation'
 
 /**
  * ShipStation Shipping Plugin for Payload CMS
- * 
+ *
  * Provides comprehensive shipping functionality including:
  * - Rate calculation with Canadian provincial rates
  * - ShipStation API integration for real-time carrier rates
@@ -13,11 +17,11 @@ import { ShippingSettings } from './globals/ShippingSettings'
  * - Custom shipping zones
  * - Rate caching (Redis/in-memory)
  * - Webhook support for tracking updates
- * 
+ *
  * @example
  * ```ts
  * import { shipStationPlugin } from '@cedarroutes/payload-plugin-shipstation'
- * 
+ *
  * export default buildConfig({
  *   plugins: [
  *     shipStationPlugin({
@@ -60,8 +64,34 @@ export const shipStationPlugin =
       ShippingSettings,
     ]
 
-    // TODO: Add collection overrides
-    // config.collections = extendCollections(config.collections || [], pluginOptions)
+    // Extend Products and Variants collections with shipping fields
+    if (config.collections) {
+      config.collections = config.collections.map((collection) => {
+        if (collection.slug === 'products') {
+          const productsOverride = getProductsOverride()
+          return {
+            ...collection,
+            fields: [
+              ...collection.fields,
+              ...(productsOverride.fields || []),
+            ],
+          }
+        }
+        
+        if (collection.slug === 'product-variants') {
+          const variantsOverride = getVariantsOverride()
+          return {
+            ...collection,
+            fields: [
+              ...collection.fields,
+              ...(variantsOverride.fields || []),
+            ],
+          }
+        }
+        
+        return collection
+      })
+    }
 
     // TODO: Add custom endpoints
     // config.endpoints = [
@@ -75,10 +105,28 @@ export const shipStationPlugin =
         await incomingConfig.onInit(payload)
       }
 
+      // Initialize ShipStation API client
+      const client = new ShipStationClient({
+        apiKey: pluginOptions.apiKey!,
+        warehouseId: pluginOptions.warehouseId!,
+        sandboxMode: pluginOptions.sandboxMode,
+      })
+
+      // Store client in payload for access in endpoints/hooks
+      // @ts-expect-error - Adding custom property
+      payload.shipStationClient = client
+
       // Initialize cache if enabled
       if (pluginOptions.cache?.enableCache) {
         payload.logger.info('ShipStation Plugin: Initializing rate cache...')
-        // TODO: Initialize cache client
+        const cache = await createRateCache({
+          redisUrl: pluginOptions.cache.redisUrl,
+          enableCache: pluginOptions.cache.enableCache,
+        })
+        
+        // Store cache in payload
+        // @ts-expect-error - Adding custom property
+        payload.shipStationCache = cache
       }
 
       // Log plugin configuration
@@ -88,7 +136,7 @@ export const shipStationPlugin =
       payload.logger.info(`  Multi-Package: ${pluginOptions.enabledFeatures?.multiPackage ? 'Enabled' : 'Disabled'}`)
       payload.logger.info(`  Auto-Create Shipments: ${pluginOptions.enabledFeatures?.autoCreateShipments ? 'Enabled' : 'Disabled'}`)
       payload.logger.info(`  Webhooks: ${pluginOptions.enabledFeatures?.webhooks ? 'Enabled' : 'Disabled'}`)
-      
+
       if (pluginOptions.cache?.enableCache) {
         payload.logger.info(`  Cache: Enabled (TTL: ${pluginOptions.cache.cacheTTL}s)`)
       }
