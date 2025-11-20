@@ -6,9 +6,6 @@ import type { CollectionConfig } from 'payload'
  */
 export const getProductsOverride = (): Partial<CollectionConfig> => {
   return {
-    admin: {
-      useAsTitle: undefined, // Don't override existing config
-    },
     fields: [
       {
         type: 'tabs',
@@ -28,7 +25,7 @@ export const getProductsOverride = (): Partial<CollectionConfig> => {
                     label: 'Value',
                     min: 0,
                     admin: {
-                      description: 'Product weight (will be used if variants don\'t override)',
+                      description: 'Products weight (will be used if variants don\'t override)',
                     },
                   },
                   {
