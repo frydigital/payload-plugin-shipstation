@@ -318,7 +318,7 @@ cd packages/payload-plugin-shipstation
 pnpm link
 
 cd ../../
-pnpm link @cedarroutes/payload-plugin-shipstation
+pnpm link @frydigital/payload-plugin-shipstation
 ```
 
 ## Troubleshooting
@@ -380,8 +380,8 @@ MIT License - see LICENSE file for details
 ## Support
 
 - Documentation: [Full docs coming soon]
-- Issues: [GitHub Issues](https://github.com/arbutusroutes/cedarroutes/issues)
-- Discussions: [GitHub Discussions](https://github.com/arbutusroutes/cedarroutes/discussions)
+- Issues: [GitHub Issues](https://github.com/frydigital/payload-plugin-shipstation/issues)
+- Discussions: [GitHub Discussions](https://github.com/frydigital/cedarroutes/discussions)
 
 ## Credits
 

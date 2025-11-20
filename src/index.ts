@@ -22,7 +22,7 @@ import { getShippingEndpoints } from './endpoints'
  *
  * @example
  * ```ts
- * import { shipStationPlugin } from '@cedarroutes/payload-plugin-shipstation'
+ * import { shipStationPlugin } from '@frydigital/payload-plugin-shipstation'
  *
  * export default buildConfig({
  *   plugins: [
