@@ -1,8 +1,8 @@
 import type { Endpoint } from 'payload'
 import { calculateRatesHandler } from './calculateRates'
+import { cartShippingEligibilityHandler } from './cartShippingEligibility'
 import { validateAddressHandler } from './validateAddress'
 import { webhooksHandler } from './webhooks'
-import { cartShippingEligibilityHandler } from './cartShippingEligibility'
 
 /**
  * Get all shipping endpoints

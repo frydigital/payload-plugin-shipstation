@@ -1,7 +1,7 @@
 import type { Endpoint } from 'payload'
-import type { CartShippingEligibility, CartItem, ShippingClass } from '../types'
-import { checkShippingRestrictions } from '../utilities/checkShippingRestrictions'
+import type { CartItem, CartShippingEligibility, ShippingClass } from '../types'
 import { calculateEligibleSubtotal } from '../utilities/calculateEligibleSubtotal'
+import { checkShippingRestrictions } from '../utilities/checkShippingRestrictions'
 
 // Type for populated product/variant with shipping fields
 interface ShippingData {

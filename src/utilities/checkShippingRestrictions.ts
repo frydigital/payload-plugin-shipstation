@@ -1,4 +1,4 @@
-import type { CartItem, ShippingClass } from '../types'
+import type { CartItem } from '../types'
 
 /**
  * Check if cart items have shipping restrictions
