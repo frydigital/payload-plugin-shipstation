@@ -10,10 +10,10 @@ function verifyWebhookSignature(
   const hmac = crypto.createHmac('sha256', secret)
   hmac.update(payload)
   const expectedSignature = hmac.digest('hex')
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature),
-  )
+  // Convert to Uint8Array for TypeScript compatibility
+  const signatureBuffer = new Uint8Array(Buffer.from(signature))
+  const expectedBuffer = new Uint8Array(Buffer.from(expectedSignature))
+  return crypto.timingSafeEqual(signatureBuffer, expectedBuffer)
 }
 
 export const webhooksHandler: Endpoint['handler'] = async (req) => {
@@ -33,7 +33,7 @@ export const webhooksHandler: Endpoint['handler'] = async (req) => {
       slug: 'shipping-settings',
     })
 
-    const webhookSecret = shippingSettings?.webhooks?.webhookSecret || pluginOptions.webhookSecret
+    const webhookSecret = shippingSettings?.webhookSecret || pluginOptions.webhookSecret
 
     if (!webhookSecret) {
       req.payload.logger.warn('Webhook received but no secret configured')
@@ -47,7 +47,7 @@ export const webhooksHandler: Endpoint['handler'] = async (req) => {
 
     const event = requestBody as WebhookEvent
 
-    const enabledEvents = shippingSettings?.webhooks?.enabledWebhookEvents || []
+    const enabledEvents = shippingSettings?.enabledWebhookEvents || []
     if (enabledEvents.length > 0 && !enabledEvents.includes(event.eventType)) {
       req.payload.logger.info(`Webhook event ${event.eventType} not enabled, ignoring`)
       return Response.json({ received: true, processed: false })

@@ -23,7 +23,7 @@ export const validateAddressHandler: Endpoint['handler'] = async (req) => {
       slug: 'shipping-settings',
     })
 
-    if (!shippingSettings?.addressValidation?.enableValidation) {
+    if (!shippingSettings?.enableValidation) {
       return Response.json({
         validated: false,
         message: 'Address validation is not enabled',
@@ -40,8 +40,8 @@ export const validateAddressHandler: Endpoint['handler'] = async (req) => {
       country: address.country,
     })
 
-    const validationMode = shippingSettings.addressValidation.validationMode || 'suggest'
-    const failOnInvalid = shippingSettings.addressValidation.failOnInvalidAddress || false
+    const validationMode = shippingSettings.validationMode || 'suggest'
+    const failOnInvalid = shippingSettings.failOnInvalidAddress || false
 
     if (!result.isValid && failOnInvalid) {
       return Response.json({

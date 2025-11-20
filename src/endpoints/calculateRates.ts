@@ -29,8 +29,9 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       slug: 'shipping-settings',
     })
 
-    const isFreeShipping = shippingSettings?.freeShipping?.enabled &&
-      cartTotal >= (shippingSettings.freeShipping.threshold || 0)
+    // Check if cart qualifies for free shipping
+    const freeShippingThreshold = shippingSettings?.freeShippingThreshold || 0
+    const isFreeShipping = freeShippingThreshold > 0 && cartTotal >= freeShippingThreshold
 
     if (isFreeShipping) {
       return Response.json({
