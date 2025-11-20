@@ -2,6 +2,7 @@ import type { Endpoint } from 'payload'
 import { calculateRatesHandler } from './calculateRates'
 import { validateAddressHandler } from './validateAddress'
 import { webhooksHandler } from './webhooks'
+import { cartShippingEligibilityHandler } from './cartShippingEligibility'
 
 /**
  * Get all shipping endpoints
@@ -22,6 +23,11 @@ export function getShippingEndpoints(): Endpoint[] {
       path: '/shipping/webhooks',
       method: 'post',
       handler: webhooksHandler,
+    },
+    {
+      path: '/cart/shipping-eligibility',
+      method: 'post',
+      handler: cartShippingEligibilityHandler,
     },
   ]
 }

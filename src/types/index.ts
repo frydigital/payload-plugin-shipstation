@@ -80,7 +80,8 @@ export interface AddressValidationResult {
 
 export type WeightUnit = 'ounce' | 'pound' | 'gram' | 'kilogram'
 export type DimensionUnit = 'inch' | 'centimeter'
-export type ShippingClass = 'standard' | 'expedited' | 'fragile' | 'oversized' | 'custom'
+export type ShippingClass = 'standard' | 'expedited' | 'fragile' | 'oversized' | 'pickup-only' | 'custom'
+export type ShippingMethod = 'shipping' | 'pickup'
 
 export interface Weight {
   value: number
@@ -485,6 +486,52 @@ export interface CalculateRatesResponse {
 export interface ValidateAddressRequest {
   address: ShippingAddress
   mode?: 'validate_only' | 'validate_and_clean'
+}
+
+// ============================================================================
+// Cart Shipping Eligibility
+// ============================================================================
+
+export interface CartItem {
+  id: string
+  productId: string
+  variantId?: string
+  quantity: number
+  price: number
+  shippingClass?: ShippingClass
+  weight?: Weight
+  dimensions?: Dimensions
+}
+
+export interface CartShippingEligibility {
+  eligibleForFreeShipping: boolean
+  eligibleSubtotal: number
+  threshold: number
+  remainingAmount: number
+  itemBreakdown: {
+    shippable: CartItem[]
+    pickupOnly: CartItem[]
+    excludedFromFreeShipping: CartItem[]
+  }
+  availableMethods: {
+    shipping: boolean
+    pickup: boolean
+  }
+  restrictions: {
+    hasPickupOnlyItems: boolean
+    hasShippingOnlyItems: boolean
+    requiresPickup: boolean
+  }
+}
+
+export interface CartShippingEligibilityRequest {
+  cartId: string
+}
+
+export interface CartShippingEligibilityResponse {
+  success: boolean
+  data?: CartShippingEligibility
+  error?: string
 }
 
 export interface ValidateAddressResponse {

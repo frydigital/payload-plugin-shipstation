@@ -5,6 +5,7 @@ import { getProductsOverride } from './collections/productsOverride'
 import { getVariantsOverride } from './collections/variantsOverride'
 import { getShippingEndpoints } from './endpoints'
 import { ShippingSettings } from './globals/ShippingSettings'
+import { PickupLocations } from './globals/PickupLocations'
 import type { ShipStationPluginOptions } from './types'
 import { createRateCache } from './utilities/cache'
 
@@ -60,10 +61,11 @@ export const shipStationPlugin =
     // @ts-expect-error - Adding custom property for plugin access
     config.shipStationPlugin = pluginOptions
 
-    // Add ShippingSettings global
+    // Add globals for shipping configuration and pickup locations
     config.globals = [
       ...(config.globals || []),
       ShippingSettings,
+      PickupLocations,
     ]
 
     // Extend Products, Variants, and Orders collections with shipping fields

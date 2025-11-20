@@ -8,9 +8,78 @@ export const getOrdersOverride = (): Partial<CollectionConfig> => {
   return {
     fields: [
       {
+        name: 'shippingMethod',
+        type: 'select',
+        label: 'Shipping Method',
+        options: [
+          { label: 'Ship to Address', value: 'shipping' },
+          { label: 'In-Store Pickup', value: 'pickup' },
+        ],
+        defaultValue: 'shipping',
+        admin: {
+          position: 'sidebar',
+          description: 'How the order will be fulfilled',
+        },
+      },
+      {
+        name: 'pickupLocation',
+        type: 'text',
+        label: 'Pickup Location',
+        admin: {
+          position: 'sidebar',
+          description: 'Selected pickup location (from pickup-locations global)',
+          condition: (data) => data?.shippingMethod === 'pickup',
+        },
+      },
+      {
+        name: 'selectedRate',
+        type: 'group',
+        label: 'Selected Shipping Rate',
+        admin: {
+          condition: (data) => data?.shippingMethod === 'shipping',
+        },
+        fields: [
+          {
+            name: 'serviceName',
+            type: 'text',
+            label: 'Service Name',
+            admin: {
+              description: 'e.g., "Free Shipping", "Canada Post Expedited"',
+            },
+          },
+          {
+            name: 'serviceCode',
+            type: 'text',
+            label: 'Service Code',
+          },
+          {
+            name: 'carrierCode',
+            type: 'text',
+            label: 'Carrier Code',
+          },
+          {
+            name: 'cost',
+            type: 'number',
+            label: 'Shipping Cost',
+            admin: {
+              description: 'Cost in cents',
+            },
+          },
+          {
+            name: 'currency',
+            type: 'text',
+            label: 'Currency',
+            defaultValue: 'CAD',
+          },
+        ],
+      },
+      {
         name: 'shippingDetails',
         type: 'group',
         label: 'Shipping Details',
+        admin: {
+          condition: (data) => data?.shippingMethod === 'shipping',
+        },
         fields: [
           {
             name: 'shippingStatus',
