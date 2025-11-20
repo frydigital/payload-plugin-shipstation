@@ -71,12 +71,22 @@ export const shipStationPlugin =
       config.collections = config.collections.map((collection) => {
         if (collection.slug === 'products') {
           const productsOverride = getProductsOverride()
+          // Find the existing tabs field and add shipping tab to it
+          const updatedFields = collection.fields.map((field: any) => {
+            if (field.type === 'tabs' && field.tabs) {
+              return {
+                ...field,
+                tabs: [
+                  ...field.tabs,
+                  ...(productsOverride.fields?.[0]?.type === 'tabs' ? productsOverride.fields[0].tabs : []),
+                ],
+              }
+            }
+            return field
+          })
           return {
             ...collection,
-            fields: [
-              ...collection.fields,
-              ...(productsOverride.fields || []),
-            ],
+            fields: updatedFields,
           }
         }
         
