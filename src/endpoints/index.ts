@@ -3,6 +3,7 @@ import { calculateRatesHandler } from './calculateRates'
 import { cartShippingEligibilityHandler } from './cartShippingEligibility'
 import { validateAddressHandler } from './validateAddress'
 import { webhooksHandler } from './webhooks'
+import { createShipmentHandler } from './createShipment'
 
 /**
  * Get all shipping endpoints
@@ -18,6 +19,11 @@ export function getShippingEndpoints(): Endpoint[] {
       path: '/shipping/validate-address',
       method: 'post',
       handler: validateAddressHandler,
+    },
+    {
+      path: '/shipping/create-shipment',
+      method: 'post',
+      handler: createShipmentHandler,
     },
     {
       path: '/shipping/webhooks',

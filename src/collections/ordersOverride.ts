@@ -3,9 +3,86 @@ import type { CollectionConfig } from 'payload'
 /**
  * Orders collection override function
  * Adds shipping-related fields and tracking to orders
+ * Includes hook for auto-creating shipments on status change
  */
 export const getOrdersOverride = (): Partial<CollectionConfig> => {
   return {
+    hooks: {
+      afterChange: [
+        async ({ req, doc, previousDoc, operation }) => {
+          // Only process on update operations
+          if (operation !== 'update') {
+            return doc
+          }
+
+          const config = req.payload.config as any
+          const pluginOptions = config?.shipStationPlugin
+
+          // Check if auto-create shipments is enabled
+          if (!pluginOptions?.enabledFeatures?.autoCreateShipments) {
+            return doc
+          }
+
+          // Check if order status changed to 'processing'
+          const statusChanged = previousDoc?.status !== doc.status && doc.status === 'processing'
+          
+          if (!statusChanged) {
+            return doc
+          }
+
+          // Only create shipments for shipping orders (not pickup)
+          if (doc.shippingMethod !== 'shipping') {
+            req.payload.logger.info(`Order ${doc.id} is pickup order, skipping shipment creation`)
+            return doc
+          }
+
+          // Check if shipment already exists
+          if (doc.shippingDetails?.shipstationShipmentId) {
+            req.payload.logger.info(`Order ${doc.id} already has shipment, skipping`)
+            return doc
+          }
+
+          // Trigger shipment creation asynchronously
+          req.payload.logger.info(`Auto-creating shipment for order ${doc.id}`)
+          
+          try {
+            const client = (req.payload as any).shipStationClient
+            
+            if (!client) {
+              req.payload.logger.error('ShipStation client not initialized')
+              return doc
+            }
+
+            // Import the endpoint logic (we'll create a helper function)
+            const { createShipmentForOrder } = await import('../utilities/createShipmentForOrder')
+            
+            await createShipmentForOrder(req.payload, doc.id, client, pluginOptions)
+            
+            req.payload.logger.info(`Shipment created successfully for order ${doc.id}`)
+          } catch (error) {
+            req.payload.logger.error(`Failed to auto-create shipment for order ${doc.id}: ${(error as Error).message}`)
+            
+            // Update order to manual review
+            try {
+              await req.payload.update({
+                collection: 'orders',
+                id: doc.id,
+                data: {
+                  shippingDetails: {
+                    ...doc.shippingDetails,
+                    shippingStatus: 'manual_review',
+                  },
+                },
+              })
+            } catch (updateError) {
+              req.payload.logger.error(`Failed to update order status: ${(updateError as Error).message}`)
+            }
+          }
+
+          return doc
+        },
+      ],
+    },
     fields: [
       {
         name: 'shippingMethod',
@@ -87,6 +164,7 @@ export const getOrdersOverride = (): Partial<CollectionConfig> => {
             label: 'Shipping Status',
             options: [
               { label: 'Pending', value: 'pending' },
+              { label: 'Processing', value: 'processing' },
               { label: 'Label Created', value: 'label_created' },
               { label: 'Shipped', value: 'shipped' },
               { label: 'In Transit', value: 'in_transit' },
@@ -94,8 +172,12 @@ export const getOrdersOverride = (): Partial<CollectionConfig> => {
               { label: 'Delivered', value: 'delivered' },
               { label: 'Exception', value: 'exception' },
               { label: 'Returned', value: 'returned' },
+              { label: 'Manual Review', value: 'manual_review' },
             ],
             defaultValue: 'pending',
+            admin: {
+              description: 'Status updates automatically when shipments are created/updated',
+            },
           },
           {
             name: 'carrierCode',

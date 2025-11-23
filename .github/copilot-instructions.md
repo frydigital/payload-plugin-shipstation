@@ -44,7 +44,10 @@ The main export `shipStationPlugin()` returns a Payload plugin function that:
 ### Collection Extensions (`src/collections/`)
 Each override function returns `Partial<CollectionConfig>` with additional fields:
 - **Products/Variants**: `shippingDetails.weight`, `dimensions`, `shippingClass`, `requiresSignature`
-- **Orders**: `shippingDetails.shippingStatus`, `trackingNumber`, `carrierCode`, `labelId`, timestamps
+- **Orders**: `shippingDetails.shippingStatus`, `trackingNumber`, `carrierCode`, `labelId`, `shipstationShipmentId`, timestamps
+  - Includes `afterChange` hook for auto-creating shipments when order status changes to 'processing'
+  - Only processes orders with `shippingMethod: 'shipping'` (skips pickup orders)
+  - On failure, sets status to 'manual_review' for admin intervention
 
 These are merged into existing collection configs, NOT replacing them.
 
@@ -52,6 +55,7 @@ These are merged into existing collection configs, NOT replacing them.
 All endpoints follow Payload's `Endpoint['handler']` signature returning `Response.json()`:
 - **POST `/shipping/calculate-rates`**: Calculates shipping rates from cart items, checks free shipping thresholds
 - **POST `/shipping/validate-address`**: Validates/corrects addresses via ShipStation
+- **POST `/shipping/create-shipment`**: Creates a shipment in ShipStation for a Payload order (manual trigger)
 - **POST `/shipping/webhooks`**: Handles ShipStation webhook events with HMAC signature verification
 
 Access the client via `(req.payload as any).shipStationClient` since TypeScript doesn't know about the custom property.
@@ -60,10 +64,15 @@ Access the client via `(req.payload as any).shipStationClient` since TypeScript 
 Singleton client stored in `payload.shipStationClient` with methods:
 - `getRates()`: Fetch carrier rates for shipment (ShipStation: `/carriers/{carrierCode}/services/{serviceCode}/rates`)
 - `validateAddress()`: Address validation/correction (ShipStation: `/addresses/validate`)
-- `createShipment()`, `createLabel()`, `voidLabel()`: Label management (ShipStation: `/shipments/*`)
+- **`createShipment()`**: Create shipment in ShipStation (ShipStation: `POST /v2/shipments`)
+- **`getShipment()`**: Retrieve shipment details (ShipStation: `GET /v2/shipments/{shipment_id}`)
+- **`cancelShipment()`**: Cancel pending shipment (ShipStation: `POST /v2/shipments/{shipment_id}/cancel`)
+- `createLabel()`, `voidLabel()`: Label management - Phase 2 placeholders (ShipStation: `/labels/*`)
 - Uses `baseUrl` based on `sandboxMode` flag
   - Production: `https://ssapi.shipstation.com`
   - Sandbox: `https://ssapi-sandbox.shipstation.com`
+- Implements exponential backoff retry logic (max 3 retries on 5xx errors)
+- Uses `makeRequest()` helper with proper error handling
 
 **Authentication**: Uses Basic Auth with API Key (Base64 encoded in Authorization header)
 
@@ -137,6 +146,33 @@ These config options exist but are placeholders:
 
 Log warnings in `onInit` if these are configured but don't implement functionality yet.
 
+## Shipment Creation Workflow
+
+### Auto-Creation on Order Status Change
+When `autoCreateShipments` is enabled in plugin config:
+1. Order status changes to 'processing' triggers `afterChange` hook
+2. Hook validates order is for shipping (not pickup)
+3. Calls `createShipmentForOrder()` utility helper
+4. Maps order data to ShipStation format (items, addresses, weights)
+5. Creates shipment via `POST /v2/shipments`
+6. Updates order with `shipstationShipmentId` and status 'processing'
+7. On failure, marks order as 'manual_review'
+
+### Manual Creation via Endpoint
+Call `POST /api/shipping/create-shipment` with `{ orderId: string }`:
+- Uses same `createShipmentForOrder()` utility
+- Returns shipment details or error with manual_review status
+- Merchant can trigger from admin UI or external system
+
+### Warehouse Address Configuration
+Shipment creation uses the warehouse ID from `SHIPSTATION_WAREHOUSE_ID` environment variable (or plugin config fallback) to automatically populate the ship-from address. ShipStation maintains the warehouse address details internally.
+
+### Shipment Status Flow
+1. **pending**: Shipment created in ShipStation, awaiting label purchase
+2. **processing**: Shipment active, ready for fulfillment
+3. **shipped**: Label purchased, tracking active (Phase 2)
+4. **manual_review**: Auto-creation failed, requires admin intervention
+
 ## Common Tasks
 
 ### Adding a New Endpoint
@@ -151,6 +187,12 @@ Log warnings in `onInit` if these are configured but don't implement functionali
 
 ### Extending Types
 All types in `src/types/index.ts` are exported from main `src/index.ts` via `export * from './types'`.
+
+### Creating Shipment Utilities
+Shared logic lives in `src/utilities/createShipmentForOrder.ts`:
+- Maps Payload order → ShipStation shipment request
+- Handles validation and error states
+- Reusable by both endpoint and hooks
 
 ### Webhook Signature Verification
 Uses HMAC-SHA256 with `crypto.timingSafeEqual()` for timing-safe comparison. Secret from `shippingSettings.webhookSecret` or plugin config.

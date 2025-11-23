@@ -252,7 +252,8 @@ Enable custom shipping zones for advanced rate calculations based on postal code
 1. Go to Settings > API > Webhooks in ShipStation
 2. Add webhook URL: `https://yourdomain.com/api/shipping/shipstation/webhook`
 3. Select events: tracking.updated, tracking.delivered
-4. Add your webhook secret
+4. Add your webhook secret through a postman api request as a custom-key in the header.
+
 
 ### Tracking Updates
 
