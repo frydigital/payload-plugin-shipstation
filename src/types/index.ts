@@ -80,7 +80,8 @@ export interface AddressValidationResult {
 
 export type WeightUnit = 'ounce' | 'pound' | 'gram' | 'kilogram'
 export type DimensionUnit = 'inch' | 'centimeter'
-export type ShippingClass = 'standard' | 'expedited' | 'fragile' | 'oversized' | 'custom'
+export type ShippingClass = 'standard' | 'expedited' | 'fragile' | 'oversized' | 'pickup-only' | 'custom'
+export type ShippingMethod = 'shipping' | 'pickup'
 
 export interface Weight {
   value: number
@@ -263,6 +264,7 @@ export type ShipmentStatus =
   | 'delivered'
   | 'exception'
   | 'returned'
+  | 'manual_review'
 
 // ============================================================================
 // Order Shipping Details
@@ -487,10 +489,188 @@ export interface ValidateAddressRequest {
   mode?: 'validate_only' | 'validate_and_clean'
 }
 
+// ============================================================================
+// Cart Shipping Eligibility
+// ============================================================================
+
+export interface CartItem {
+  id: string
+  productId: string
+  variantId?: string
+  quantity: number
+  price: number
+  shippingClass?: ShippingClass
+  weight?: Weight
+  dimensions?: Dimensions
+}
+
+export interface CartShippingEligibility {
+  eligibleForFreeShipping: boolean
+  eligibleSubtotal: number
+  threshold: number
+  remainingAmount: number
+  itemBreakdown: {
+    shippable: CartItem[]
+    pickupOnly: CartItem[]
+    excludedFromFreeShipping: CartItem[]
+  }
+  availableMethods: {
+    shipping: boolean
+    pickup: boolean
+  }
+  restrictions: {
+    hasPickupOnlyItems: boolean
+    hasShippingOnlyItems: boolean
+    requiresPickup: boolean
+  }
+}
+
+export interface CartShippingEligibilityRequest {
+  cartId: string
+}
+
+export interface CartShippingEligibilityResponse {
+  success: boolean
+  data?: CartShippingEligibility
+  error?: string
+}
+
 export interface ValidateAddressResponse {
   success: boolean
   valid?: boolean
   correctedAddress?: ShippingAddress
   errors?: string[]
   warnings?: string[]
+}
+
+// ============================================================================
+// Shipment Creation Types
+// ============================================================================
+
+export interface CreateShipmentRequest {
+  orderId: string
+  validateAddress?: boolean
+  testLabel?: boolean // For sandbox/testing
+}
+
+export interface CreateShipmentResponse {
+  success: boolean
+  shipmentId?: string
+  externalShipmentId?: string
+  orderId: string
+  status?: ShipmentStatus
+  validationResults?: AddressValidationResult
+  error?: string
+  warnings?: string[]
+}
+
+export interface ShipStationCreateShipmentRequest {
+  shipments: Array<{
+    validate_address?: 'no_validation' | 'validate_only' | 'validate_and_clean'
+    external_shipment_id?: string
+    warehouse_id?: string
+    carrier_id?: string
+    create_sales_order?: boolean
+    store_id?: string
+    notes_from_buyer?: string
+    notes_for_gift?: string
+    is_gift?: boolean
+    shipment_status?: string
+    amount_paid?: {
+      currency: string
+      amount: number
+    }
+    shipping_paid?: {
+      currency: string
+      amount: number
+    }
+    tax_paid?: {
+      currency: string
+      amount: number
+    }
+    ship_to: {
+      name: string
+      company_name?: string
+      address_line1: string
+      address_line2?: string
+      address_line3?: string
+      city_locality: string
+      state_province: string
+      postal_code: string
+      country_code: string
+      phone?: string
+      address_residential_indicator?: 'yes' | 'no' | 'unknown'
+    }
+    ship_from?: {
+      name?: string
+      company_name?: string
+      address_line1: string
+      address_line2?: string
+      address_line3?: string
+      city_locality: string
+      state_province: string
+      postal_code: string
+      country_code: string
+      phone?: string
+    }
+    items?: Array<{
+      name: string
+      sku?: string
+      quantity: number
+      unit_price?: {
+        currency: string
+        amount: number
+      }
+      weight?: {
+        value: number
+        unit: string
+      }
+    }>
+    packages?: Array<{
+      weight: {
+        value: number
+        unit: string
+      }
+      dimensions?: {
+        length: number
+        width: number
+        height: number
+        unit: string
+      }
+    }>
+  }>
+}
+
+export interface ShipStationCreateShipmentResponse {
+  shipments: Array<{
+    shipment_id: string
+    external_shipment_id?: string
+    shipment_number?: string
+    created_at: string
+    modified_at: string
+    shipment_status: string
+    errors?: Array<{
+      message: string
+      error_code: string
+    }>
+  }>
+  errors?: Array<{
+    message: string
+    error_code: string
+  }>
+}
+
+export interface ShipStationGetShipmentResponse {
+  shipment_id: string
+  external_shipment_id?: string
+  shipment_number?: string
+  carrier_id?: string
+  service_code?: string
+  shipment_status: string
+  ship_to: any
+  ship_from?: any
+  items?: any[]
+  packages?: any[]
+  created_at: string
+  modified_at: string
 }

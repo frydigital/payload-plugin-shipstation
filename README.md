@@ -1,5 +1,9 @@
 # @frydigital/payload-plugin-shipstation
 
+[![CI](https://github.com/frydigital/payload-plugin-shipstation/actions/workflows/ci.yml/badge.svg)](https://github.com/frydigital/payload-plugin-shipstation/actions/workflows/ci.yml)
+[![npm version](https://badge.fury.io/js/@frydigital%2Fpayload-plugin-shipstation.svg)](https://badge.fury.io/js/@frydigital%2Fpayload-plugin-shipstation)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A comprehensive ShipStation integration plugin for Payload CMS ecommerce projects. Provides real-time shipping rate calculation, address validation, multi-package handling, and webhook support for tracking updates.
 
 ## Features
@@ -252,7 +256,8 @@ Enable custom shipping zones for advanced rate calculations based on postal code
 1. Go to Settings > API > Webhooks in ShipStation
 2. Add webhook URL: `https://yourdomain.com/api/shipping/shipstation/webhook`
 3. Select events: tracking.updated, tracking.delivered
-4. Add your webhook secret
+4. Add your webhook secret through a postman api request as a custom-key in the header.
+
 
 ### Tracking Updates
 
@@ -360,9 +365,61 @@ pnpm link @frydigital/payload-plugin-shipstation
 - Carrier comparison insights
 - Customer satisfaction tracking
 
+## Development
+
+### Running Tests
+
+```bash
+# Run tests once
+pnpm test
+
+# Run tests in watch mode
+pnpm test:watch
+
+# Run tests with coverage
+pnpm test:coverage
+
+# Run tests with UI
+pnpm test:ui
+```
+
+### Test Coverage
+
+The plugin has comprehensive test coverage:
+- **ShipStation API Client**: 85.21%
+- **Shipment Creation Utility**: 98.46%
+- **Orders Collection Hook**: 95.62%
+- **Endpoints**: 84-100%
+- **Overall**: 73 tests passing
+
+### Building
+
+```bash
+# Build the plugin
+pnpm build
+
+# Watch mode for development
+pnpm dev
+
+# Clean build artifacts
+pnpm clean
+```
+
+### CI/CD
+
+Tests run automatically on:
+- Pull request creation
+- Push to `master`/`main` branches
+- Node.js versions: 18.x, 20.x
+
 ## Contributing
 
-We welcome contributions! Please see our contributing guidelines.
+We welcome contributions! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass (`pnpm test`)
+5. Submit a pull request
 
 ## License
 
