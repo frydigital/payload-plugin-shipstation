@@ -114,6 +114,25 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
     console.log('📦 [ShipStation] Calling ShipStation API for rates...')
     req.payload.logger.info('📦 [ShipStation] Calling ShipStation API for rates...')
     
+    // Get carrier IDs from settings (REQUIRED by v2 API)
+    const preferredCarriers = shippingSettings?.preferredCarriers || []
+    const carrierIds = preferredCarriers
+      .filter((c: any) => c.enabled !== false)
+      .map((c: any) => c.carrierId)
+      .filter(Boolean)
+    
+    console.log('📦 [ShipStation] Carrier IDs from settings:', carrierIds)
+    
+    if (!carrierIds || carrierIds.length === 0) {
+      console.warn('⚠️ [ShipStation] No carrier IDs configured in shipping settings - cannot fetch rates')
+      req.payload.logger.warn('⚠️ [ShipStation] No carrier IDs configured in shipping settings')
+      return Response.json({
+        rates: [],
+        freeShipping: false,
+        error: 'No carriers configured. Please add carrier IDs in shipping settings.',
+      })
+    }
+    
     // Calculate total weight from all items
     const totalWeight = items.reduce((sum: number, item: any) => {
       const weight = item.weight?.value || 1
@@ -133,8 +152,8 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       shipTo,
       // shipFrom not needed - client will use warehouse_id internally
       weight: { value: totalWeight, unit: items[0]?.weight?.unit || 'kilogram' }, // Default to kilogram if not specified
-
       dimensions: largestDimensions,
+      carrierIds, // REQUIRED by v2 API
       requiresSignature: items.some((item: any) => item.requiresSignature),
       residential: shipTo.addressResidentialIndicator === 'yes' ? true : shipTo.addressResidentialIndicator === 'no' ? false : undefined, // Pass undefined to default to 'unknown'
     }

@@ -55,7 +55,7 @@ export class ShipStationClient {
     shipFrom?: ShippingAddress
     weight: Weight
     dimensions?: Dimensions
-    carrierCode?: string
+    carrierIds?: string[] // REQUIRED by v2 API - must provide at least one carrier ID
     serviceCode?: string
     requiresSignature?: boolean
     residential?: boolean
@@ -65,11 +65,35 @@ export class ShipStationClient {
     console.log('🚀 [ShipStation] Base URL:', this.baseUrl)
     console.log('🚀 [ShipStation] Full URL:', url)
     
-    const requestBody: any = {
-      rate_options: {
-        carrier_ids: params.carrierCode ? [params.carrierCode] : undefined,
-        service_codes: params.serviceCode ? [params.serviceCode] : undefined,
+    // Build rate_options - carrier_ids is REQUIRED by v2 API spec
+    const rateOptions: Record<string, any> = {
+      carrier_ids: params.carrierIds || [], // Will be populated by endpoint from settings
+    }
+    
+    if (params.serviceCode) {
+      rateOptions.service_codes = [params.serviceCode]
+    }
+    
+    // Build package object without undefined fields (additionalProperties: false)
+    const packageObj: Record<string, any> = {
+      weight: {
+        value: params.weight.value,
+        unit: params.weight.unit,
       },
+    }
+    
+    // Only add dimensions if provided (avoid undefined)
+    if (params.dimensions) {
+      packageObj.dimensions = {
+        length: params.dimensions.length,
+        width: params.dimensions.width,
+        height: params.dimensions.height,
+        unit: params.dimensions.unit,
+      }
+    }
+    
+    const requestBody: Record<string, any> = {
+      rate_options: rateOptions,
       shipment: {
         validate_address: 'validate_and_clean',
         ship_to: {
@@ -82,20 +106,7 @@ export class ShipStationClient {
           country_code: params.shipTo.country,
           address_residential_indicator: params.residential === true ? 'yes' : params.residential === false ? 'no' : 'unknown',
         },
-        packages: [
-          {
-            weight: {
-              value: params.weight.value,
-              unit: params.weight.unit,
-            },
-            dimensions: params.dimensions ? {
-              length: params.dimensions.length,
-              width: params.dimensions.width,
-              height: params.dimensions.height,
-              unit: params.dimensions.unit,
-            } : undefined,
-          },
-        ],
+        packages: [packageObj],
       },
     }
     

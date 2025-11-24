@@ -311,6 +311,7 @@ describe('ShipStationClient', () => {
           value: 1.5,
           unit: 'kilogram',
         },
+        carrierIds: ['se-123456'],
       })
 
       expect(rates).toEqual([])
@@ -345,6 +346,7 @@ describe('ShipStationClient', () => {
           value: 1.5,
           unit: 'kilogram',
         },
+        carrierIds: ['se-123456'],
       })
 
       expect(rates).toEqual([])
@@ -385,7 +387,7 @@ describe('ShipStationClient', () => {
           height: 5,
           unit: 'centimeter',
         },
-        carrierCode: 'fedex',
+        carrierIds: ['se-fedex-123'],
         serviceCode: 'fedex_ground',
         requiresSignature: true,
         residential: false,
@@ -395,7 +397,7 @@ describe('ShipStationClient', () => {
         'https://docs.shipstation.com/_mock/openapi/v2/rates',
         expect.objectContaining({
           method: 'POST',
-          body: expect.stringContaining('"carrier_ids":["fedex"]'),
+          body: expect.stringContaining('"carrier_ids":["se-fedex-123"]'),
         })
       )
     })
