@@ -178,7 +178,7 @@ describe('ShipStationClient', () => {
     it('should successfully cancel a shipment', async () => {
       const shipmentId = 'se-123456789'
       const mockFetch = createMockFetch({
-        [`POST https://docs.shipstation.com/_mock/openapi/v2/shipments/${shipmentId}/cancel`]:
+        [`PUT https://docs.shipstation.com/_mock/openapi/v2/shipments/${shipmentId}/cancel`]:
           {},
       })
       global.fetch = mockFetch as any
@@ -192,7 +192,7 @@ describe('ShipStationClient', () => {
     it('should throw error if cancellation fails', async () => {
       const shipmentId = 'se-123456789'
       const mockFetch = createMockFetch({
-        [`POST https://docs.shipstation.com/_mock/openapi/v2/shipments/${shipmentId}/cancel`]:
+        [`PUT https://docs.shipstation.com/_mock/openapi/v2/shipments/${shipmentId}/cancel`]:
           {
             error: true,
             status: 400,

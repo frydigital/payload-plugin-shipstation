@@ -50,7 +50,7 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
           city: toAddress.city,
           province: toAddress.province,
           postalCode: toAddress.postalCode,
-          country: toAddress.country || 'CA',
+          country: toAddress.country, // Required field - no default
         }
         console.log(`📦 [ShipStation] Cart total: $${cartTotal}, Ship to: ${shipTo.postalCode}`)
         req.payload.logger.info(`📦 [ShipStation] Cart total: $${cartTotal}, Ship to: ${shipTo.postalCode}`)
@@ -132,7 +132,8 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
     const getRatesParams = {
       shipTo,
       // shipFrom not needed - client will use warehouse_id internally
-      weight: { value: totalWeight, unit: items[0]?.weight?.unit || 'kilogram' },
+      weight: { value: totalWeight, unit: items[0]?.weight?.unit || 'kilogram' }, // Default to kilogram if not specified
+
       dimensions: largestDimensions,
       requiresSignature: items.some((item: any) => item.requiresSignature),
       residential: shipTo.addressResidentialIndicator === 'yes' ? true : shipTo.addressResidentialIndicator === 'no' ? false : undefined, // Pass undefined to default to 'unknown'

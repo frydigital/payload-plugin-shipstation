@@ -57,7 +57,7 @@ export async function createShipmentForOrder(
         sku: variant?.sku || product?.sku || undefined,
         quantity: item.quantity || 1,
         unit_price: item.price ? {
-          currency: 'CAD',
+          currency: (order as any).currency || 'USD', // TODO: Get from order currency field
           amount: item.price,
         } : undefined,
         weight: variant?.shippingDetails?.weight || product?.shippingDetails?.weight ? {
@@ -101,16 +101,16 @@ export async function createShipmentForOrder(
             {
               weight: {
                 value: totalWeight,
-                unit: 'kilogram',
+                unit: 'kilogram', // Default to kilogram - products should specify their weight unit
               },
             },
           ] : undefined,
           amount_paid: order.total ? {
-            currency: 'CAD',
+            currency: (order as any).currency || 'USD', // TODO: Get from order currency field
             amount: order.total,
           } : undefined,
           shipping_paid: order.selectedRate?.cost ? {
-            currency: 'CAD',
+            currency: (order as any).currency || 'USD', // TODO: Get from order currency field
             amount: order.selectedRate.cost,
           } : undefined,
           notes_from_buyer: order.customerNotes,

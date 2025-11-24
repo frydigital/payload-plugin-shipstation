@@ -65,7 +65,7 @@ export class ShipStationClient {
     console.log('🚀 [ShipStation] Base URL:', this.baseUrl)
     console.log('🚀 [ShipStation] Full URL:', url)
     
-    const requestBody = {
+    const requestBody: any = {
       rate_options: {
         carrier_ids: params.carrierCode ? [params.carrierCode] : undefined,
         service_codes: params.serviceCode ? [params.serviceCode] : undefined,
@@ -81,17 +81,6 @@ export class ShipStationClient {
           postal_code: params.shipTo.postalCode,
           country_code: params.shipTo.country,
           address_residential_indicator: params.residential === true ? 'yes' : params.residential === false ? 'no' : 'unknown',
-        },
-        ship_from: params.shipFrom ? {
-          name: params.shipFrom.name || 'Sender',
-          address_line1: params.shipFrom.addressLine1,
-          address_line2: params.shipFrom.addressLine2,
-          city_locality: params.shipFrom.city,
-          state_province: params.shipFrom.state,
-          postal_code: params.shipFrom.postalCode,
-          country_code: params.shipFrom.country,
-        } : {
-          warehouse_id: this.warehouseId,
         },
         packages: [
           {
@@ -110,10 +99,25 @@ export class ShipStationClient {
       },
     }
     
+    // Add ship_from or warehouse_id at shipment level based on API spec
+    if (params.shipFrom) {
+      requestBody.shipment.ship_from = {
+        name: params.shipFrom.name || 'Sender',
+        address_line1: params.shipFrom.addressLine1,
+        address_line2: params.shipFrom.addressLine2,
+        city_locality: params.shipFrom.city,
+        state_province: params.shipFrom.state,
+        postal_code: params.shipFrom.postalCode,
+        country_code: params.shipFrom.country,
+      }
+    } else {
+      requestBody.shipment.warehouse_id = this.warehouseId
+    }
+    
     try {
       console.log('📤 [ShipStation] POST', url)
       console.log('📤 [ShipStation] Request Body:', JSON.stringify(requestBody, null, 2))
-      console.log('📤 [ShipStation] Auth:', `Basic ${Buffer.from(this.apiKey).toString('base64').substring(0, 20)}...`)
+      console.log('📤 [ShipStation] Auth:', `API-Key ${this.apiKey.substring(0, 20)}...`)
       
       const response = await this.makeRequest<any>('POST', url, requestBody)
       
@@ -146,7 +150,12 @@ export class ShipStationClient {
     }
   }
 
-  async validateAddress(address: {
+  /**
+   * @deprecated ShipStation v2 API does not have a dedicated address validation endpoint.
+   * Address validation is done inline when creating rates/shipments using the validate_address parameter.
+   * This method is kept for backwards compatibility but always returns valid=false.
+   */
+  async validateAddress(_address: {
     street1: string
     street2?: string
     city: string
@@ -159,46 +168,13 @@ export class ShipStationClient {
     warnings?: string[]
     errors?: string[]
   }> {
-    const url = `${this.baseUrl}/v2/addresses/validate`
+    // ShipStation v2 doesn't have /v2/addresses/validate endpoint
+    // Address validation happens inline with rate/shipment creation via validate_address parameter
+    console.warn('[ShipStation] validateAddress is deprecated - use validate_address parameter in rate/shipment calls')
     
-    const requestBody = {
-      address: {
-        name: 'Address Validation',
-        address_line1: address.street1,
-        address_line2: address.street2,
-        city_locality: address.city,
-        state_province: address.state,
-        postal_code: address.postalCode,
-        country_code: address.country,
-      },
-    }
-    
-    try {
-      const response = await this.makeRequest<any>('POST', url, requestBody)
-      
-      // ShipStation v2 returns validation status
-      const isValid = response.status === 'verified' || response.status === 'valid'
-      
-      return {
-        isValid,
-        normalizedAddress: response.matched_address ? {
-          street1: response.matched_address.address_line1,
-          street2: response.matched_address.address_line2,
-          city: response.matched_address.city_locality,
-          state: response.matched_address.state_province,
-          postalCode: response.matched_address.postal_code,
-          country: response.matched_address.country_code,
-        } : undefined,
-        warnings: response.messages?.filter((m: any) => m.type === 'warning').map((m: any) => m.message) || [],
-        errors: response.messages?.filter((m: any) => m.type === 'error').map((m: any) => m.message) || [],
-      }
-    } catch (error) {
-      // If validation fails, return as invalid but don't throw
-      console.error('ShipStation validateAddress error:', error)
-      return {
-        isValid: false,
-        errors: ['Address validation service unavailable'],
-      }
+    return {
+      isValid: false,
+      errors: ['Address validation must be done inline with rate/shipment creation in ShipStation v2 API'],
     }
   }
 
@@ -230,7 +206,7 @@ export class ShipStationClient {
     const url = `${this.baseUrl}/v2/shipments/${shipmentId}/cancel`
     
     try {
-      await this.makeRequest<void>('POST', url)
+      await this.makeRequest<void>('PUT', url)
       return { success: true }
     } catch (error) {
       throw this.handleError(error, 'Failed to cancel shipment')
@@ -259,7 +235,7 @@ export class ShipStationClient {
   ): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.apiKey}`,
+      'API-Key': this.apiKey,
     }
 
     const options: RequestInit = {
