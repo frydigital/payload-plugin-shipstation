@@ -60,12 +60,131 @@ export class ShipStationClient {
     requiresSignature?: boolean
     residential?: boolean
   }): Promise<ShipStationRate[]> {
-    // Simplified implementation - full implementation would call ShipStation API
-    return []
+    const url = `${this.baseUrl}/v2/rates`
+    
+    const requestBody = {
+      rate_options: {
+        carrier_ids: params.carrierCode ? [params.carrierCode] : undefined,
+        service_codes: params.serviceCode ? [params.serviceCode] : undefined,
+      },
+      shipment: {
+        validate_address: 'no_validation',
+        ship_to: {
+          name: 'Recipient',
+          address_line1: params.shipTo.line1 || params.shipTo.street1 || '',
+          address_line2: params.shipTo.line2 || params.shipTo.street2,
+          city_locality: params.shipTo.city,
+          state_province: params.shipTo.province || params.shipTo.state || '',
+          postal_code: params.shipTo.postalCode,
+          country_code: params.shipTo.country,
+          address_residential_indicator: params.residential ? 'yes' : 'unknown',
+        },
+        ship_from: {
+          name: 'Sender',
+          address_line1: params.shipFrom.line1 || params.shipFrom.street1 || '',
+          address_line2: params.shipFrom.line2 || params.shipFrom.street2,
+          city_locality: params.shipFrom.city,
+          state_province: params.shipFrom.province || params.shipFrom.state || '',
+          postal_code: params.shipFrom.postalCode,
+          country_code: params.shipFrom.country,
+        },
+        packages: [
+          {
+            weight: {
+              value: params.weight.value,
+              unit: params.weight.unit === 'kg' ? 'kilogram' : params.weight.unit,
+            },
+            dimensions: params.dimensions ? {
+              length: params.dimensions.length,
+              width: params.dimensions.width,
+              height: params.dimensions.height,
+              unit: params.dimensions.unit === 'cm' ? 'centimeter' : params.dimensions.unit,
+            } : undefined,
+          },
+        ],
+      },
+    }
+    
+    try {
+      const response = await this.makeRequest<any>('POST', url, requestBody)
+      
+      // ShipStation v2 API returns rate_response with rates array
+      if (response.rate_response?.rates) {
+        return response.rate_response.rates.map((rate: any) => ({
+          serviceName: rate.service_type || rate.service_code,
+          serviceCode: rate.service_code,
+          carrierCode: rate.carrier_code || rate.carrier_id,
+          shipmentCost: rate.shipping_amount?.amount || 0,
+          otherCost: rate.other_amount?.amount || 0,
+          deliveryDays: rate.delivery_days,
+          carrierDeliveryDays: rate.carrier_delivery_days,
+          shipDate: rate.ship_date,
+          estimatedDeliveryDate: rate.estimated_delivery_date,
+        }))
+      }
+      
+      return []
+    } catch (error) {
+      // Log error but don't throw - return empty array so fallback rates can be used
+      console.error('ShipStation getRates error:', error)
+      return []
+    }
   }
 
-  async validateAddress(address: any): Promise<any> {
-    return { isValid: true }
+  async validateAddress(address: {
+    street1: string
+    street2?: string
+    city: string
+    state: string
+    postalCode: string
+    country: string
+  }): Promise<{
+    isValid: boolean
+    normalizedAddress?: any
+    warnings?: string[]
+    errors?: string[]
+  }> {
+    const url = `${this.baseUrl}/v2/addresses/validate`
+    
+    const requestBody = {
+      address: {
+        name: 'Address Validation',
+        address_line1: address.street1,
+        address_line2: address.street2,
+        city_locality: address.city,
+        state_province: address.state,
+        postal_code: address.postalCode,
+        country_code: address.country,
+      },
+    }
+    
+    try {
+      const response = await this.makeRequest<any>('POST', url, requestBody)
+      
+      // ShipStation v2 returns validation status
+      const isValid = response.status === 'verified' || response.status === 'valid'
+      
+      return {
+        isValid,
+        normalizedAddress: response.matched_address ? {
+          street1: response.matched_address.address_line1,
+          street2: response.matched_address.address_line2,
+          city: response.matched_address.city_locality,
+          state: response.matched_address.state_province,
+          postalCode: response.matched_address.postal_code,
+          country: response.matched_address.country_code,
+        } : undefined,
+        warnings: response.messages?.filter((m: any) => m.type === 'warning').map((m: any) => m.message) || [],
+        errors: response.messages?.filter((m: any) => m.type === 'error').map((m: any) => m.message) || [],
+      }
+    } catch (error) {
+      // If validation fails, return as invalid but don't throw
+      console.error('ShipStation validateAddress error:', error)
+      return {
+        isValid: false,
+        errors: ['Address validation service unavailable'],
+      }
+    }
   }
 
   async createShipment(
