@@ -147,7 +147,7 @@ export class ShipStationClient {
       // ShipStation v2 API returns rate_response with rates array
       if (response.rate_response?.rates) {
         return response.rate_response.rates.map((rate) => ({
-          serviceName: rate.service_name || rate.service_code,
+          serviceName: rate.service_name || rate.service_type || rate.service_code,
           serviceCode: rate.service_code,
           carrierCode: rate.carrier_code || rate.carrier_id,
           shippingAmount: {
@@ -280,12 +280,12 @@ export class ShipStationClient {
   /**
    * List available services for a specific carrier
    */
-  async listCarrierServices(carrierId: string): Promise<unknown> {
+  async listCarrierServices(carrierId: string): Promise<unknown[]> {
     const url = `${this.baseUrl}/v2/carriers/${carrierId}/services`
     
     try {
-      const response = await this.makeRequest<unknown>('GET', url)
-      return response
+      const response = await this.makeRequest<{ services: unknown[] }>('GET', url)
+      return response.services || []
     } catch (error) {
       throw this.handleError(error, `Failed to list services for carrier ${carrierId}`)
     }

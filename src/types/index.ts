@@ -422,6 +422,7 @@ export interface ShipStationCalculateRatesResponse {
   rate_response: {
     rates: Array<{
       service_name?: string
+      service_type?: string
       service_code: string
       carrier_code?: string
       carrier_id?: string
@@ -481,6 +482,66 @@ export interface ShipStationError {
   name: string
 }
 
+// ============================================================================
+// Cart & Checkout
+// ============================================================================
+
+export interface CartItem {
+  id: string
+  product: unknown
+  quantity: number
+  shippingClass?: ShippingClass
+  price?: number
+  // Add other fields as needed
+}
+
+export interface CartShippingEligibility {
+  eligibleForFreeShipping: boolean
+  eligibleSubtotal: number
+  threshold: number
+  remainingAmount: number
+  itemBreakdown: {
+    shippable: CartItem[]
+    pickupOnly: CartItem[]
+    excludedFromFreeShipping: CartItem[]
+  }
+  availableMethods: {
+    shipping: boolean
+    pickup: boolean
+  }
+  restrictions: {
+    hasPickupOnlyItems: boolean
+    hasShippingOnlyItems: boolean
+    requiresPickup: boolean
+  }
+}
+
+// ============================================================================
+// Shipment Creation Types
+// ============================================================================
+
+export interface CreateShipmentRequest {
+  orderId: string
+  validateAddress?: boolean
+  testLabel?: boolean
+}
+
+export interface CreateShipmentResponse {
+  success: boolean
+  shipmentId?: string
+  externalShipmentId?: string
+  orderId?: string
+  status?: ShipmentStatus
+  validationResults?: AddressValidationResult
+  error?: string
+  warnings?: string[]
+}
+
+export interface MoneyAmount {
+  currency: string
+  amount: number
+}
+
 export interface ShipStationCarrier {
   carrier_id: string
   carrier_code: string
@@ -493,9 +554,4 @@ export interface ShipStationCarrier {
     domestic: boolean
     international: boolean
   }>
-}
-
-export interface MoneyAmount {
-  currency: string
-  amount: number
 }

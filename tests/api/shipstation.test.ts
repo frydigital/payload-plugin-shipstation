@@ -34,7 +34,7 @@ describe('ShipStationClient', () => {
   describe('createShipment', () => {
     it('should successfully create a shipment', async () => {
       const mockFetch = createMockFetch({
-        'POST https://docs.shipstation.com/_mock/openapi/v2/shipments':
+        'POST https://api.shipstation.com/v2/shipments':
           mockShipStationSuccessResponse,
       })
       global.fetch = mockFetch as any
@@ -61,7 +61,7 @@ describe('ShipStationClient', () => {
       expect(response).toEqual(mockShipStationSuccessResponse)
       expect(mockFetch).toHaveBeenCalledOnce()
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://docs.shipstation.com/_mock/openapi/v2/shipments',
+        'https://api.shipstation.com/v2/shipments',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -73,7 +73,7 @@ describe('ShipStationClient', () => {
 
     it('should throw ShipStationError on API error', async () => {
       const mockFetch = createMockFetch({
-        'POST https://docs.shipstation.com/_mock/openapi/v2/shipments': {
+        'POST https://api.shipstation.com/v2/shipments': {
           error: true,
           status: 400,
           message: 'Invalid request',
@@ -135,7 +135,7 @@ describe('ShipStationClient', () => {
     it('should successfully get a shipment', async () => {
       const shipmentId = 'se-123456789'
       const mockFetch = createMockFetch({
-        [`GET https://docs.shipstation.com/_mock/openapi/v2/shipments/${shipmentId}`]:
+        [`GET https://api.shipstation.com/v2/shipments/${shipmentId}`]:
           mockShipStationGetResponse,
       })
       global.fetch = mockFetch as any
@@ -149,7 +149,7 @@ describe('ShipStationClient', () => {
     it('should throw error if shipment not found', async () => {
       const shipmentId = 'invalid_id'
       const mockFetch = createMockFetch({
-        [`GET https://docs.shipstation.com/_mock/openapi/v2/shipments/${shipmentId}`]:
+        [`GET https://api.shipstation.com/v2/shipments/${shipmentId}`]:
           {
             error: true,
             status: 404,
@@ -168,7 +168,7 @@ describe('ShipStationClient', () => {
     it('should successfully cancel a shipment', async () => {
       const shipmentId = 'se-123456789'
       const mockFetch = createMockFetch({
-        [`PUT https://docs.shipstation.com/_mock/openapi/v2/shipments/${shipmentId}/cancel`]:
+        [`PUT https://api.shipstation.com/v2/shipments/${shipmentId}/cancel`]:
           {},
       })
       global.fetch = mockFetch as any
@@ -182,7 +182,7 @@ describe('ShipStationClient', () => {
     it('should throw error if cancellation fails', async () => {
       const shipmentId = 'se-123456789'
       const mockFetch = createMockFetch({
-        [`PUT https://docs.shipstation.com/_mock/openapi/v2/shipments/${shipmentId}/cancel`]:
+        [`PUT https://api.shipstation.com/v2/shipments/${shipmentId}/cancel`]:
           {
             error: true,
             status: 400,
@@ -231,7 +231,7 @@ describe('ShipStationClient', () => {
       }
 
       const mockFetch = createMockFetch({
-        'POST https://docs.shipstation.com/_mock/openapi/v2/rates': mockRatesResponse,
+        'POST https://api.shipstation.com/v2/rates': mockRatesResponse,
       })
       global.fetch = mockFetch as any
 
@@ -261,16 +261,16 @@ describe('ShipStationClient', () => {
         serviceName: 'USPS Priority Mail',
         serviceCode: 'usps_priority_mail',
         carrierCode: 'stamps_com',
-        shipmentCost: 12.50,
-        otherCost: 0,
+        shippingAmount: { amount: 12.50, currency: 'usd' },
+        otherAmount: { amount: 0, currency: 'usd' },
         deliveryDays: 3,
       })
       expect(rates[1]).toMatchObject({
         serviceName: 'FedEx Ground',
         serviceCode: 'fedex_ground',
         carrierCode: 'fedex',
-        shipmentCost: 15.75,
-        otherCost: 1.25,
+        shippingAmount: { amount: 15.75, currency: 'usd' },
+        otherAmount: { amount: 1.25, currency: 'usd' },
         deliveryDays: 5,
       })
       expect(mockFetch).toHaveBeenCalledOnce()
@@ -278,7 +278,7 @@ describe('ShipStationClient', () => {
 
     it('should return empty array when API response has no rates', async () => {
       const mockFetch = createMockFetch({
-        'POST https://docs.shipstation.com/_mock/openapi/v2/rates': {},
+        'POST https://api.shipstation.com/v2/rates': {},
       })
       global.fetch = mockFetch as any
 
@@ -309,7 +309,7 @@ describe('ShipStationClient', () => {
 
     it('should return empty array on API error', async () => {
       const mockFetch = createMockFetch({
-        'POST https://docs.shipstation.com/_mock/openapi/v2/rates': {
+        'POST https://api.shipstation.com/v2/rates': {
           error: true,
           status: 400,
           message: 'Invalid shipment data',
@@ -348,7 +348,7 @@ describe('ShipStationClient', () => {
       }
 
       const mockFetch = createMockFetch({
-        'POST https://docs.shipstation.com/_mock/openapi/v2/rates': mockRatesResponse,
+        'POST https://api.shipstation.com/v2/rates': mockRatesResponse,
       })
       global.fetch = mockFetch as any
 
@@ -384,7 +384,7 @@ describe('ShipStationClient', () => {
       })
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://docs.shipstation.com/_mock/openapi/v2/rates',
+        'https://api.shipstation.com/v2/rates',
         expect.objectContaining({
           method: 'POST',
           body: expect.stringContaining('"carrier_ids":["se-fedex-123"]'),
@@ -429,7 +429,7 @@ describe('ShipStationClient', () => {
       }
 
       const mockFetch = createMockFetch({
-        'GET https://docs.shipstation.com/_mock/openapi/v2/carriers': mockCarriersResponse,
+        'GET https://api.shipstation.com/v2/carriers': mockCarriersResponse,
       })
       global.fetch = mockFetch as any
 
@@ -451,7 +451,7 @@ describe('ShipStationClient', () => {
 
     it('should return empty array when no carriers', async () => {
       const mockFetch = createMockFetch({
-        'GET https://docs.shipstation.com/_mock/openapi/v2/carriers': { carriers: [] },
+        'GET https://api.shipstation.com/v2/carriers': { carriers: [] },
       })
       global.fetch = mockFetch as any
 
@@ -463,7 +463,7 @@ describe('ShipStationClient', () => {
 
     it('should throw error on API failure', async () => {
       const mockFetch = createMockFetch({
-        'GET https://docs.shipstation.com/_mock/openapi/v2/carriers': {
+        'GET https://api.shipstation.com/v2/carriers': {
           error: true,
           status: 400,
           message: 'Bad Request',
@@ -505,7 +505,7 @@ describe('ShipStationClient', () => {
       }
 
       const mockFetch = createMockFetch({
-        [`GET https://docs.shipstation.com/_mock/openapi/v2/carriers/${carrierId}`]:
+        [`GET https://api.shipstation.com/v2/carriers/${carrierId}`]:
           mockCarrierResponse,
       })
       global.fetch = mockFetch as any
@@ -526,7 +526,7 @@ describe('ShipStationClient', () => {
     it('should throw error if carrier not found', async () => {
       const carrierId = 'invalid_id'
       const mockFetch = createMockFetch({
-        [`GET https://docs.shipstation.com/_mock/openapi/v2/carriers/${carrierId}`]: {
+        [`GET https://api.shipstation.com/v2/carriers/${carrierId}`]: {
           error: true,
           status: 404,
           message: 'Carrier not found',
@@ -561,7 +561,7 @@ describe('ShipStationClient', () => {
       }
 
       const mockFetch = createMockFetch({
-        [`GET https://docs.shipstation.com/_mock/openapi/v2/carriers/${carrierId}/services`]:
+        [`GET https://api.shipstation.com/v2/carriers/${carrierId}/services`]:
           mockServicesResponse,
       })
       global.fetch = mockFetch as any
@@ -585,7 +585,7 @@ describe('ShipStationClient', () => {
     it('should return empty array when no services', async () => {
       const carrierId = 'se-123456'
       const mockFetch = createMockFetch({
-        [`GET https://docs.shipstation.com/_mock/openapi/v2/carriers/${carrierId}/services`]: {
+        [`GET https://api.shipstation.com/v2/carriers/${carrierId}/services`]: {
           services: [],
         },
       })
@@ -600,7 +600,7 @@ describe('ShipStationClient', () => {
     it('should throw error on API failure', async () => {
       const carrierId = 'se-123456'
       const mockFetch = createMockFetch({
-        [`GET https://docs.shipstation.com/_mock/openapi/v2/carriers/${carrierId}/services`]: {
+        [`GET https://api.shipstation.com/v2/carriers/${carrierId}/services`]: {
           error: true,
           status: 400,
           message: 'Bad Request',
