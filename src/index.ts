@@ -134,7 +134,7 @@ export const shipStationPlugin =
       const client = new ShipStationClient({
         apiKey: pluginOptions.apiKey!,
         warehouseId: pluginOptions.warehouseId!,
-        sandboxMode: pluginOptions.sandboxMode,
+        apiUrl: process.env.SHIPSTATION_API_URL,
       })
 
       // Store client in payload for access in endpoints/hooks

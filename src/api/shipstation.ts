@@ -1,14 +1,12 @@
 import type {
-  ShipStationRate,
-  ShippingAddress,
-  Weight,
   Dimensions,
-  ShipStationShipment,
-  ShipStationPackage,
-  ShipStationError as ShipStationErrorType,
   ShipStationCreateShipmentRequest,
   ShipStationCreateShipmentResponse,
+  ShipStationError as ShipStationErrorType,
   ShipStationGetShipmentResponse,
+  ShipStationRate,
+  ShippingAddress,
+  Weight
 } from '../types'
 
 export class ShipStationError extends Error implements ShipStationErrorType {
@@ -28,7 +26,7 @@ export class ShipStationError extends Error implements ShipStationErrorType {
 interface ShipStationClientConfig {
   apiKey: string
   warehouseId: string
-  sandboxMode?: boolean
+  apiUrl?: string
   maxRetries?: number
   retryDelay?: number
 }
@@ -43,12 +41,19 @@ export class ShipStationClient {
   constructor(config: ShipStationClientConfig) {
     this.apiKey = config.apiKey
     this.warehouseId = config.warehouseId
-    this.baseUrl = config.sandboxMode
-      ? 'https://docs.shipstation.com/_mock/openapi'
-      : 'https://api.shipstation.com'
+    this.baseUrl = config.apiUrl || process.env.SHIPSTATION_API_URL || 'https://api.shipstation.com'
     this.maxRetries = config.maxRetries || 3
     this.retryDelay = config.retryDelay || 1000
   }
+
+  public getApiKey(): string {
+    return this.apiKey
+  }
+
+  public getWarehouseId(): string {
+    return this.warehouseId
+  }
+
 
   async getRates(params: {
     shipTo: ShippingAddress

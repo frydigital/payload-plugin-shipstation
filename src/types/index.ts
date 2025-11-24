@@ -11,7 +11,6 @@ export interface ShipStationPluginOptions {
   /** Core API configuration */
   apiKey: string
   warehouseId: string
-  sandboxMode?: boolean
 
   /** Feature flags */
   enabledFeatures?: {
