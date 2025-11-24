@@ -156,7 +156,6 @@ export const shipStationPlugin =
 
       // Log plugin configuration
       payload.logger.info('ShipStation Plugin: Initialized successfully')
-      payload.logger.info(`  Sandbox Mode: ${pluginOptions.sandboxMode ? 'Enabled' : 'Disabled'}`)
       payload.logger.info(`  Address Validation: ${pluginOptions.enabledFeatures?.addressValidation ? 'Enabled' : 'Disabled'}`)
       payload.logger.info(`  Multi-Package: ${pluginOptions.enabledFeatures?.multiPackage ? 'Enabled' : 'Disabled'}`)
       payload.logger.info(`  Auto-Create Shipments: ${pluginOptions.enabledFeatures?.autoCreateShipments ? 'Enabled' : 'Disabled'}`)

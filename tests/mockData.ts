@@ -253,7 +253,6 @@ export const mockRates = [
 export const mockPluginOptions = {
   apiKey: 'TEST_API_KEY',
   warehouseId: 'se-warehouse-123',
-  sandboxMode: true,
   enabledFeatures: {
     addressValidation: true,
     multiPackage: false,

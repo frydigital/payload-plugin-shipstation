@@ -1,10 +1,15 @@
 import type {
   Dimensions,
+  ShipStationCalculateRatesRequest,
+  ShipStationCalculateRatesResponse,
   ShipStationCreateShipmentRequest,
   ShipStationCreateShipmentResponse,
   ShipStationError as ShipStationErrorType,
   ShipStationGetShipmentResponse,
+  ShipStationPackage,
   ShipStationRate,
+  ShipStationAddress,
+  ShipStationCarrier,
   ShippingAddress,
   Weight
 } from '../types'
@@ -71,7 +76,7 @@ export class ShipStationClient {
     console.log('🚀 [ShipStation] Full URL:', url)
     
     // Build rate_options - carrier_ids is REQUIRED by v2 API spec
-    const rateOptions: Record<string, any> = {
+    const rateOptions: ShipStationCalculateRatesRequest['rate_options'] = {
       carrier_ids: params.carrierIds || [], // Will be populated by endpoint from settings
     }
     
@@ -80,7 +85,7 @@ export class ShipStationClient {
     }
     
     // Build package object without undefined fields (additionalProperties: false)
-    const packageObj: Record<string, any> = {
+    const packageObj: ShipStationPackage = {
       weight: {
         value: params.weight.value,
         unit: params.weight.unit,
@@ -97,16 +102,16 @@ export class ShipStationClient {
       }
     }
     
-    const requestBody: Record<string, any> = {
+    const requestBody: ShipStationCalculateRatesRequest = {
       rate_options: rateOptions,
       shipment: {
         validate_address: 'validate_and_clean',
         ship_to: {
           name: params.shipTo.name || 'Recipient',
-          address_line1: params.shipTo.addressLine1 || (params.shipTo as any).line1,
-          address_line2: params.shipTo.addressLine2 || (params.shipTo as any).line2,
+          address_line1: params.shipTo.addressLine1,
+          address_line2: params.shipTo.addressLine2,
           city_locality: params.shipTo.city,
-          state_province: params.shipTo.state || (params.shipTo as any).province,
+          state_province: params.shipTo.state,
           postal_code: params.shipTo.postalCode,
           country_code: params.shipTo.country,
           address_residential_indicator: params.residential === true ? 'yes' : params.residential === false ? 'no' : 'unknown',
@@ -135,18 +140,24 @@ export class ShipStationClient {
       console.log('📤 [ShipStation] Request Body:', JSON.stringify(requestBody, null, 2))
       console.log('📤 [ShipStation] Auth:', `API-Key ${this.apiKey.substring(0, 20)}...`)
       
-      const response = await this.makeRequest<any>('POST', url, requestBody)
+      const response = await this.makeRequest<ShipStationCalculateRatesResponse>('POST', url, requestBody)
       
       console.log('📥 [ShipStation] Response:', JSON.stringify(response, null, 2))
       
       // ShipStation v2 API returns rate_response with rates array
       if (response.rate_response?.rates) {
-        return response.rate_response.rates.map((rate: any) => ({
-          serviceName: rate.service_type || rate.service_code,
+        return response.rate_response.rates.map((rate) => ({
+          serviceName: rate.service_name || rate.service_code,
           serviceCode: rate.service_code,
           carrierCode: rate.carrier_code || rate.carrier_id,
-          shipmentCost: rate.shipping_amount?.amount || 0,
-          otherCost: rate.other_amount?.amount || 0,
+          shippingAmount: {
+            amount: rate.shipping_amount?.amount || 0,
+            currency: rate.shipping_amount?.currency || 'CAD',
+          },
+          otherAmount: {
+            amount: rate.other_amount?.amount || 0,
+            currency: rate.other_amount?.currency || 'CAD',
+          },
           deliveryDays: rate.delivery_days,
           carrierDeliveryDays: rate.carrier_delivery_days,
           shipDate: rate.ship_date,
@@ -180,7 +191,7 @@ export class ShipStationClient {
     country: string
   }): Promise<{
     isValid: boolean
-    normalizedAddress?: any
+    normalizedAddress?: ShipStationAddress
     warnings?: string[]
     errors?: string[]
   }> {
@@ -233,23 +244,11 @@ export class ShipStationClient {
    * List all carriers connected to the account
    * Returns carrier IDs, names, and available services
    */
-  async listCarriers(): Promise<Array<{
-    carrier_id: string
-    carrier_code: string
-    carrier_name: string
-    nickname?: string
-    account_number?: string
-    services?: Array<{
-      service_code: string
-      name: string
-      domestic: boolean
-      international: boolean
-    }>
-  }>> {
+  async listCarriers(): Promise<ShipStationCarrier[]> {
     const url = `${this.baseUrl}/v2/carriers`
     
     try {
-      const response = await this.makeRequest<{ carriers: any[] }>('GET', url)
+      const response = await this.makeRequest<{ carriers: ShipStationCarrier[] }>('GET', url)
       return response.carriers || []
     } catch (error) {
       throw this.handleError(error, 'Failed to list carriers')
@@ -260,62 +259,54 @@ export class ShipStationClient {
    * Get details for a specific carrier including available services
    */
   async getCarrier(carrierId: string): Promise<{
-    carrier_id: string
-    carrier_code: string
-    carrier_name: string
-    services?: any[]
-    packages?: any[]
-    options?: any[]
-  }> {
+    services?: unknown[]
+    packages?: unknown[]
+    options?: unknown[]
+  } | null> {
     const url = `${this.baseUrl}/v2/carriers/${carrierId}`
     
     try {
-      const response = await this.makeRequest<any>('GET', url)
+      const response = await this.makeRequest<{
+        services?: unknown[]
+        packages?: unknown[]
+        options?: unknown[]
+      }>('GET', url)
       return response
     } catch (error) {
-      throw this.handleError(error, 'Failed to get carrier details')
+      throw this.handleError(error, `Failed to get carrier ${carrierId}`)
     }
   }
 
   /**
    * List available services for a specific carrier
    */
-  async listCarrierServices(carrierId: string): Promise<Array<{
-    service_code: string
-    name: string
-    domestic: boolean
-    international: boolean
-    description?: string
-  }>> {
+  async listCarrierServices(carrierId: string): Promise<unknown> {
     const url = `${this.baseUrl}/v2/carriers/${carrierId}/services`
     
     try {
-      const response = await this.makeRequest<any>('GET', url)
-      return response.services || []
+      const response = await this.makeRequest<unknown>('GET', url)
+      return response
     } catch (error) {
-      throw this.handleError(error, 'Failed to list carrier services')
+      throw this.handleError(error, `Failed to list services for carrier ${carrierId}`)
     }
   }
 
-  async createLabel(params: any): Promise<any> {
-    // To be implemented in Phase 2
-    return {}
+  async createLabel(_params: unknown): Promise<unknown> {
+    throw new Error('Not implemented')
   }
 
-  async voidLabel(labelId: string): Promise<any> {
-    // To be implemented in Phase 2
-    return { success: true }
+  async voidLabel(_labelId: string): Promise<unknown> {
+    throw new Error('Not implemented')
   }
 
-  async getTracking(trackingNumber: string): Promise<any> {
-    // To be implemented in Phase 2
-    return { trackingNumber, status: 'unknown', events: [] }
+  async getTracking(_trackingNumber: string): Promise<unknown> {
+    throw new Error('Not implemented')
   }
 
   private async makeRequest<T>(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     url: string,
-    body?: any
+    body?: unknown
   ): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -343,7 +334,7 @@ export class ShipStationClient {
           console.error(`❌ [ShipStation API] URL: ${url}`)
           console.error(`❌ [ShipStation API] Response Body:`, errorBody)
           
-          let errorData: any
+          let errorData: unknown
           try {
             errorData = JSON.parse(errorBody)
             console.error(`❌ [ShipStation API] Parsed Error:`, JSON.stringify(errorData, null, 2))
@@ -351,12 +342,17 @@ export class ShipStationClient {
             errorData = { message: errorBody }
           }
           
-          throw new ShipStationError(
-            errorData.message || `HTTP ${response.status}: ${response.statusText}`,
-            errorData.error_code || `HTTP_${response.status}`,
-            response.status,
-            errorData
-          )
+          // Handle ShipStation API error format
+          if (errorData) {
+            const data = errorData as { message?: string; error_code?: string }
+            
+            throw new ShipStationError(
+              data.message || `HTTP ${response.status}`,
+              data.error_code || `HTTP_${response.status}`,
+              response.status,
+              errorData
+            )
+          }
         }
 
         // Handle 204 No Content

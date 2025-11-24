@@ -1,5 +1,15 @@
 import type { Endpoint } from 'payload'
 
+const normalizeWeightUnit = (unit: string): string => {
+  const map: Record<string, string> = {
+    'kg': 'kilogram',
+    'g': 'gram',
+    'lb': 'pound',
+    'oz': 'ounce',
+  }
+  return map[unit] || unit
+}
+
 export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
   const startTime = Date.now()
   try {
@@ -35,8 +45,13 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
           const product = typeof item.product === 'object' ? item.product : null
           const variant = typeof item.variant === 'object' ? item.variant : null
           
+          let weight = variant?.weight || product?.weight || { value: 1, unit: 'kilogram' }
+          if (weight && weight.unit) {
+            weight = { ...weight, unit: normalizeWeightUnit(weight.unit) }
+          }
+
           return {
-            weight: variant?.weight || product?.weight || { value: 1, unit: 'kg' },
+            weight,
             dimensions: variant?.dimensions || product?.dimensions,
             quantity: item.quantity || 1,
             requiresSignature: variant?.requiresSignature || product?.requiresSignature || false,

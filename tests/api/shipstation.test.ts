@@ -17,7 +17,6 @@ describe('ShipStationClient', () => {
     client = new ShipStationClient({
       apiKey: mockApiKey,
       warehouseId: mockWarehouseId,
-      sandboxMode: true,
     })
     vi.restoreAllMocks()
   })
@@ -29,15 +28,6 @@ describe('ShipStationClient', () => {
         warehouseId: mockWarehouseId,
       })
       expect(prodClient).toBeDefined()
-    })
-
-    it('should initialize with sandbox URL when sandboxMode is true', () => {
-      const sandboxClient = new ShipStationClient({
-        apiKey: mockApiKey,
-        warehouseId: mockWarehouseId,
-        sandboxMode: true,
-      })
-      expect(sandboxClient).toBeDefined()
     })
   })
 

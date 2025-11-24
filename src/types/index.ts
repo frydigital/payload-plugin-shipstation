@@ -112,66 +112,31 @@ export interface ProductShippingDetails {
 // ============================================================================
 
 export interface ShipStationRate {
-  rateId: string
-  rateType: 'shipment' | 'estimate'
-  carrierId: string
-  carrierCode: string
-  carrierName: string
+  rateId?: string
+  rateType?: 'shipment' | 'estimate'
+  carrierId?: string
+  carrierCode?: string
+  carrierName?: string
   carrierNickname?: string
   serviceCode: string
-  serviceType: string
+  serviceName?: string
+  serviceType?: string
   
   shippingAmount: MoneyAmount
-  insuranceAmount: MoneyAmount
-  confirmationAmount: MoneyAmount
-  otherAmount: MoneyAmount
+  insuranceAmount?: MoneyAmount
+  confirmationAmount?: MoneyAmount
+  otherAmount?: MoneyAmount
   
   deliveryDays?: number
   estimatedDeliveryDate?: string
-  guaranteedService: boolean
-  trackable: boolean
+  carrierDeliveryDays?: string
+  shipDate?: string
+  
+  guaranteedService?: boolean
+  trackable?: boolean
   
   validationStatus?: 'valid' | 'has_warnings' | 'invalid'
   warningMessages?: string[]
-  errorMessages?: string[]
-  
-  packageType?: string
-  zone?: number
-}
-
-export interface MoneyAmount {
-  currency: string
-  amount: number
-}
-
-export interface RateCalculationResult {
-  rates: ShipStationRate[]
-  freeShipping: boolean
-  appliedRule: 'free_shipping' | 'provincial_rate' | 'zone_rate' | 'calculated' | 'none'
-  packages: PackageDetails[]
-  cacheHit: boolean
-  metadata?: {
-    totalWeight?: Weight
-    totalDimensions?: Dimensions
-    estimatedDeliveryRange?: string
-  }
-}
-
-export interface PackageDetails {
-  packageId?: string
-  packageCode?: string
-  weight: Weight
-  dimensions?: Dimensions
-  insuredValue?: MoneyAmount
-  items: PackageItem[]
-}
-
-export interface PackageItem {
-  productId: string
-  variantId?: string
-  quantity: number
-  weight?: Weight
-  shippingClass?: ShippingClass
 }
 
 // ============================================================================
@@ -319,17 +284,7 @@ export interface ShipStationShipment {
   validateAddress?: 'no_validation' | 'validate_only' | 'validate_and_clean'
 }
 
-export interface ShipStationPackage {
-  packageCode: string
-  weight: Weight
-  dimensions?: Dimensions
-  insuredValue?: MoneyAmount
-  labelMessages?: {
-    reference1?: string
-    reference2?: string
-    reference3?: string
-  }
-}
+
 
 export interface ShipStationAdvancedOptions {
   billToAccount?: string
@@ -357,7 +312,7 @@ export interface ShipStationRateRequest {
 export interface ShipStationRateResponse {
   rateResponse: {
     rates: ShipStationRate[]
-    invalidRates: any[]
+    invalidRates: unknown[]
     rateRequestId: string
     shipmentId: string
     createdAt: string
@@ -367,200 +322,23 @@ export interface ShipStationRateResponse {
   shipment: ShipStationShipment
 }
 
-// ============================================================================
-// Error Handling
-// ============================================================================
-
-export class ShipStationError extends Error {
-  constructor(
-    message: string,
-    public code: string,
-    public statusCode?: number,
-    public details?: any
-  ) {
-    super(message)
-    this.name = 'ShipStationError'
+export interface ShipStationCalculateRatesRequest {
+  rate_options: {
+    carrier_ids: string[]
+    package_types?: string[]
+    service_codes?: string[]
+    calculate_tax_amount?: boolean
+    preferred_currency?: string
+    is_return?: boolean
   }
-}
-
-// ============================================================================
-// Phase 2: Placeholder Types (Coming Soon)
-// ============================================================================
-
-/**
- * @alpha - Phase 2 Feature
- * International shipping configuration for customs forms and duties
- * Target: Q1 2026
- */
-export interface InternationalShippingConfig {
-  enabled: boolean
-  customsFormTemplate?: string
-  dutyCalculationProvider?: 'avalara' | 'manual'
-  restrictedCountries?: string[]
-  hsCodeRequired?: boolean
-  defaultContentType?: 'merchandise' | 'documents' | 'sample' | 'returned_goods' | 'gift'
-}
-
-/**
- * @alpha - Phase 2 Feature
- * Multi-carrier account management with load balancing
- * Target: Q1 2026
- */
-export interface CarrierAccountConfig {
-  enabled: boolean
-  accounts?: CarrierAccount[]
-  selectionStrategy?: 'round_robin' | 'cost_optimize' | 'fastest_delivery' | 'manual'
-  fallbackToDefaultAccount?: boolean
-}
-
-export interface CarrierAccount {
-  id: string
-  name: string
-  carrierId: string
-  accountNumber: string
-  warehouseId?: string
-  priority: number
-  enabled: boolean
-  loadBalancingStrategy?: 'round_robin' | 'cost_optimize'
-  restrictions?: {
-    provinces?: string[]
-    zones?: string[]
-    maxWeight?: Weight
+  shipment: {
+    validate_address?: 'no_validation' | 'validate_only' | 'validate_and_clean'
+    ship_to: ShipStationAddress
+    ship_from?: ShipStationAddress
+    warehouse_id?: string
+    packages: ShipStationPackage[]
+    confirmation?: 'none' | 'delivery' | 'signature' | 'adult_signature' | 'direct_signature'
   }
-}
-
-/**
- * @alpha - Phase 2 Feature
- * Shipping analytics and performance tracking
- * Target: Q1 2026
- */
-export interface AnalyticsConfig {
-  enabled: boolean
-  trackRateRequests?: boolean
-  trackDeliveryPerformance?: boolean
-  trackCustomerSatisfaction?: boolean
-  retentionDays?: number
-}
-
-export interface ShippingAnalytics {
-  id: string
-  rateRequestId: string
-  timestamp: string
-  cartValue: number
-  selectedRate?: ShipStationRate
-  deliveryEstimate?: string
-  actualDeliveryTime?: number // Hours
-  cost: number
-  customerSatisfaction?: number // 1-5 rating
-  carrierPerformance?: {
-    onTime: boolean
-    daysEarly?: number
-    daysLate?: number
-  }
-}
-
-// ============================================================================
-// Utility Types
-// ============================================================================
-
-export interface CalculateRatesRequest {
-  cartId?: string
-  items?: PackageItem[]
-  shippingAddress: ShippingAddress
-  options?: {
-    validateAddress?: boolean
-    includeEstimates?: boolean
-  }
-}
-
-export interface CalculateRatesResponse {
-  success: boolean
-  rates?: ShipStationRate[]
-  freeShipping?: boolean
-  packages?: PackageDetails[]
-  cacheHit?: boolean
-  metadata?: any
-  error?: string
-}
-
-export interface ValidateAddressRequest {
-  address: ShippingAddress
-  mode?: 'validate_only' | 'validate_and_clean'
-}
-
-// ============================================================================
-// Cart Shipping Eligibility
-// ============================================================================
-
-export interface CartItem {
-  id: string
-  productId: string
-  variantId?: string
-  quantity: number
-  price: number
-  shippingClass?: ShippingClass
-  weight?: Weight
-  dimensions?: Dimensions
-}
-
-export interface CartShippingEligibility {
-  eligibleForFreeShipping: boolean
-  eligibleSubtotal: number
-  threshold: number
-  remainingAmount: number
-  itemBreakdown: {
-    shippable: CartItem[]
-    pickupOnly: CartItem[]
-    excludedFromFreeShipping: CartItem[]
-  }
-  availableMethods: {
-    shipping: boolean
-    pickup: boolean
-  }
-  restrictions: {
-    hasPickupOnlyItems: boolean
-    hasShippingOnlyItems: boolean
-    requiresPickup: boolean
-  }
-}
-
-export interface CartShippingEligibilityRequest {
-  cartId: string
-}
-
-export interface CartShippingEligibilityResponse {
-  success: boolean
-  data?: CartShippingEligibility
-  error?: string
-}
-
-export interface ValidateAddressResponse {
-  success: boolean
-  valid?: boolean
-  correctedAddress?: ShippingAddress
-  errors?: string[]
-  warnings?: string[]
-}
-
-// ============================================================================
-// Shipment Creation Types
-// ============================================================================
-
-export interface CreateShipmentRequest {
-  orderId: string
-  validateAddress?: boolean
-  testLabel?: boolean // For sandbox/testing
-}
-
-export interface CreateShipmentResponse {
-  success: boolean
-  shipmentId?: string
-  externalShipmentId?: string
-  orderId: string
-  status?: ShipmentStatus
-  validationResults?: AddressValidationResult
-  error?: string
-  warnings?: string[]
 }
 
 export interface ShipStationCreateShipmentRequest {
@@ -587,31 +365,8 @@ export interface ShipStationCreateShipmentRequest {
       currency: string
       amount: number
     }
-    ship_to: {
-      name: string
-      company_name?: string
-      address_line1: string
-      address_line2?: string
-      address_line3?: string
-      city_locality: string
-      state_province: string
-      postal_code: string
-      country_code: string
-      phone?: string
-      address_residential_indicator?: 'yes' | 'no' | 'unknown'
-    }
-    ship_from?: {
-      name?: string
-      company_name?: string
-      address_line1: string
-      address_line2?: string
-      address_line3?: string
-      city_locality: string
-      state_province: string
-      postal_code: string
-      country_code: string
-      phone?: string
-    }
+    ship_to: ShipStationAddress
+    ship_from?: ShipStationAddress
     items?: Array<{
       name: string
       sku?: string
@@ -622,21 +377,10 @@ export interface ShipStationCreateShipmentRequest {
       }
       weight?: {
         value: number
-        unit: string
+        unit: WeightUnit
       }
     }>
-    packages?: Array<{
-      weight: {
-        value: number
-        unit: string
-      }
-      dimensions?: {
-        length: number
-        width: number
-        height: number
-        unit: string
-      }
-    }>
+    packages?: ShipStationPackage[]
   }>
 }
 
@@ -666,10 +410,92 @@ export interface ShipStationGetShipmentResponse {
   carrier_id?: string
   service_code?: string
   shipment_status: string
-  ship_to: any
-  ship_from?: any
-  items?: any[]
-  packages?: any[]
+  ship_to: ShipStationAddress
+  ship_from?: ShipStationAddress
+  items?: unknown[]
+  packages?: ShipStationPackage[]
   created_at: string
   modified_at: string
+}
+
+export interface ShipStationCalculateRatesResponse {
+  rate_response: {
+    rates: Array<{
+      service_name?: string
+      service_code: string
+      carrier_code?: string
+      carrier_id?: string
+      shipping_amount: {
+        amount: number
+        currency: string
+      }
+      other_amount?: {
+        amount: number
+        currency: string
+      }
+      delivery_days?: number
+      carrier_delivery_days?: string
+      ship_date?: string
+      estimated_delivery_date?: string
+    }>
+  }
+}
+
+export interface ShipStationAddress {
+  name?: string
+  company_name?: string
+  address_line1: string
+  address_line2?: string
+  address_line3?: string
+  city_locality: string
+  state_province: string
+  postal_code: string
+  country_code: string
+  phone?: string
+  address_residential_indicator?: 'yes' | 'no' | 'unknown'
+}
+
+export interface ShipStationPackage {
+  weight: {
+    value: number
+    unit: WeightUnit
+  }
+  dimensions?: {
+    length: number
+    width: number
+    height: number
+    unit: DimensionUnit
+  }
+}
+
+// Placeholders for future features
+export type InternationalShippingConfig = Record<string, unknown>
+export type CarrierAccountConfig = Record<string, unknown>
+export type AnalyticsConfig = Record<string, unknown>
+
+export interface ShipStationError {
+  code: string
+  statusCode?: number
+  details?: unknown
+  message: string
+  name: string
+}
+
+export interface ShipStationCarrier {
+  carrier_id: string
+  carrier_code: string
+  carrier_name: string
+  nickname?: string
+  account_number?: string
+  services?: Array<{
+    service_code: string
+    name: string
+    domestic: boolean
+    international: boolean
+  }>
+}
+
+export interface MoneyAmount {
+  currency: string
+  amount: number
 }

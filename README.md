@@ -67,7 +67,6 @@ export default buildConfig({
     shipStationPlugin({
       apiKey: process.env.SHIPSTATION_API_KEY!,
       warehouseId: process.env.SHIPSTATION_WAREHOUSE_ID!,
-      sandboxMode: process.env.SHIPSTATION_SANDBOX_MODE === 'true',
       
       // Enable features
       enabledFeatures: {
