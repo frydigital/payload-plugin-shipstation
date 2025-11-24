@@ -114,13 +114,28 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
     console.log('📦 [ShipStation] Calling ShipStation API for rates...')
     req.payload.logger.info('📦 [ShipStation] Calling ShipStation API for rates...')
     
+    // Calculate total weight from all items
+    const totalWeight = items.reduce((sum: number, item: any) => {
+      const weight = item.weight?.value || 1
+      return sum + weight
+    }, 0)
+    
+    // Use largest dimensions from items (ShipStation will calculate based on package size)
+    const largestDimensions = items.reduce((largest: any, item: any) => {
+      if (!item.dimensions) return largest
+      if (!largest) return item.dimensions
+      const itemVolume = item.dimensions.length * item.dimensions.width * item.dimensions.height
+      const largestVolume = largest.length * largest.width * largest.height
+      return itemVolume > largestVolume ? item.dimensions : largest
+    }, null)
+    
     const getRatesParams = {
       shipTo,
-      shipFrom: { postalCode: 'V6B 1A1', country: 'CA' },
-      weight: items[0]?.weight || { value: 1, unit: 'kg' },
-      dimensions: items[0]?.dimensions,
+      // shipFrom not needed - client will use warehouse_id internally
+      weight: { value: totalWeight, unit: items[0]?.weight?.unit || 'kilogram' },
+      dimensions: largestDimensions,
       requiresSignature: items.some((item: any) => item.requiresSignature),
-      residential: true,
+      residential: shipTo.addressResidentialIndicator === 'yes' ? true : shipTo.addressResidentialIndicator === 'no' ? false : undefined, // Pass undefined to default to 'unknown'
     }
     console.log('🔍 [ShipStation] getRates params:', JSON.stringify(getRatesParams, null, 2))
     console.log('🔍 [ShipStation] Client type:', typeof client, client.constructor.name)

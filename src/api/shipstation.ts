@@ -52,7 +52,7 @@ export class ShipStationClient {
 
   async getRates(params: {
     shipTo: ShippingAddress
-    shipFrom: ShippingAddress
+    shipFrom?: ShippingAddress
     weight: Weight
     dimensions?: Dimensions
     carrierCode?: string
@@ -71,18 +71,18 @@ export class ShipStationClient {
         service_codes: params.serviceCode ? [params.serviceCode] : undefined,
       },
       shipment: {
-        validate_address: 'no_validation',
+        validate_address: 'validate_and_clean',
         ship_to: {
           name: params.shipTo.name || 'Recipient',
-          address_line1: params.shipTo.addressLine1,
-          address_line2: params.shipTo.addressLine2,
+          address_line1: params.shipTo.addressLine1 || (params.shipTo as any).line1,
+          address_line2: params.shipTo.addressLine2 || (params.shipTo as any).line2,
           city_locality: params.shipTo.city,
-          state_province: params.shipTo.state,
+          state_province: params.shipTo.state || (params.shipTo as any).province,
           postal_code: params.shipTo.postalCode,
           country_code: params.shipTo.country,
-          address_residential_indicator: params.residential ? 'yes' : 'unknown',
+          address_residential_indicator: params.residential === true ? 'yes' : params.residential === false ? 'no' : 'unknown',
         },
-        ship_from: {
+        ship_from: params.shipFrom ? {
           name: params.shipFrom.name || 'Sender',
           address_line1: params.shipFrom.addressLine1,
           address_line2: params.shipFrom.addressLine2,
@@ -90,6 +90,8 @@ export class ShipStationClient {
           state_province: params.shipFrom.state,
           postal_code: params.shipFrom.postalCode,
           country_code: params.shipFrom.country,
+        } : {
+          warehouse_id: this.warehouseId,
         },
         packages: [
           {
@@ -257,7 +259,7 @@ export class ShipStationClient {
   ): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Authorization': `Basic ${Buffer.from(this.apiKey).toString('base64')}`,
+      'Authorization': `Bearer ${this.apiKey}`,
     }
 
     const options: RequestInit = {
