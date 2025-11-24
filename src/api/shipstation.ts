@@ -44,8 +44,8 @@ export class ShipStationClient {
     this.apiKey = config.apiKey
     this.warehouseId = config.warehouseId
     this.baseUrl = config.sandboxMode
-      ? 'https://ssapi-sandbox.shipstation.com'
-      : 'https://ssapi.shipstation.com'
+      ? 'https://docs.shipstation.com/_mock/openapi'
+      : 'https://api.shipstation.com'
     this.maxRetries = config.maxRetries || 3
     this.retryDelay = config.retryDelay || 1000
   }
@@ -60,7 +60,10 @@ export class ShipStationClient {
     requiresSignature?: boolean
     residential?: boolean
   }): Promise<ShipStationRate[]> {
+    console.log('🚀 [ShipStation] getRates called with params:', JSON.stringify(params, null, 2))
     const url = `${this.baseUrl}/v2/rates`
+    console.log('🚀 [ShipStation] Base URL:', this.baseUrl)
+    console.log('🚀 [ShipStation] Full URL:', url)
     
     const requestBody = {
       rate_options: {
@@ -70,21 +73,21 @@ export class ShipStationClient {
       shipment: {
         validate_address: 'no_validation',
         ship_to: {
-          name: 'Recipient',
-          address_line1: params.shipTo.line1 || params.shipTo.street1 || '',
-          address_line2: params.shipTo.line2 || params.shipTo.street2,
+          name: params.shipTo.name || 'Recipient',
+          address_line1: params.shipTo.addressLine1,
+          address_line2: params.shipTo.addressLine2,
           city_locality: params.shipTo.city,
-          state_province: params.shipTo.province || params.shipTo.state || '',
+          state_province: params.shipTo.state,
           postal_code: params.shipTo.postalCode,
           country_code: params.shipTo.country,
           address_residential_indicator: params.residential ? 'yes' : 'unknown',
         },
         ship_from: {
-          name: 'Sender',
-          address_line1: params.shipFrom.line1 || params.shipFrom.street1 || '',
-          address_line2: params.shipFrom.line2 || params.shipFrom.street2,
+          name: params.shipFrom.name || 'Sender',
+          address_line1: params.shipFrom.addressLine1,
+          address_line2: params.shipFrom.addressLine2,
           city_locality: params.shipFrom.city,
-          state_province: params.shipFrom.province || params.shipFrom.state || '',
+          state_province: params.shipFrom.state,
           postal_code: params.shipFrom.postalCode,
           country_code: params.shipFrom.country,
         },
@@ -92,13 +95,13 @@ export class ShipStationClient {
           {
             weight: {
               value: params.weight.value,
-              unit: params.weight.unit === 'kg' ? 'kilogram' : params.weight.unit,
+              unit: params.weight.unit,
             },
             dimensions: params.dimensions ? {
               length: params.dimensions.length,
               width: params.dimensions.width,
               height: params.dimensions.height,
-              unit: params.dimensions.unit === 'cm' ? 'centimeter' : params.dimensions.unit,
+              unit: params.dimensions.unit,
             } : undefined,
           },
         ],
@@ -106,7 +109,13 @@ export class ShipStationClient {
     }
     
     try {
+      console.log('📤 [ShipStation] POST', url)
+      console.log('📤 [ShipStation] Request Body:', JSON.stringify(requestBody, null, 2))
+      console.log('📤 [ShipStation] Auth:', `Basic ${Buffer.from(this.apiKey).toString('base64').substring(0, 20)}...`)
+      
       const response = await this.makeRequest<any>('POST', url, requestBody)
+      
+      console.log('📥 [ShipStation] Response:', JSON.stringify(response, null, 2))
       
       // ShipStation v2 API returns rate_response with rates array
       if (response.rate_response?.rates) {
@@ -126,7 +135,11 @@ export class ShipStationClient {
       return []
     } catch (error) {
       // Log error but don't throw - return empty array so fallback rates can be used
-      console.error('ShipStation getRates error:', error)
+      console.error('❌ [ShipStation] getRates error:', error)
+      if (error instanceof Error) {
+        console.error('❌ [ShipStation] Error message:', error.message)
+        console.error('❌ [ShipStation] Error stack:', error.stack)
+      }
       return []
     }
   }
@@ -264,9 +277,14 @@ export class ShipStationClient {
         
         if (!response.ok) {
           const errorBody = await response.text()
+          console.error(`❌ [ShipStation API] HTTP ${response.status}: ${response.statusText}`)
+          console.error(`❌ [ShipStation API] URL: ${url}`)
+          console.error(`❌ [ShipStation API] Response Body:`, errorBody)
+          
           let errorData: any
           try {
             errorData = JSON.parse(errorBody)
+            console.error(`❌ [ShipStation API] Parsed Error:`, JSON.stringify(errorData, null, 2))
           } catch {
             errorData = { message: errorBody }
           }

@@ -113,17 +113,25 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
 
     console.log('📦 [ShipStation] Calling ShipStation API for rates...')
     req.payload.logger.info('📦 [ShipStation] Calling ShipStation API for rates...')
-    const apiStart = Date.now()
-    const rates = await client.getRates({
+    
+    const getRatesParams = {
       shipTo,
       shipFrom: { postalCode: 'V6B 1A1', country: 'CA' },
       weight: items[0]?.weight || { value: 1, unit: 'kg' },
       dimensions: items[0]?.dimensions,
       requiresSignature: items.some((item: any) => item.requiresSignature),
       residential: true,
-    })
+    }
+    console.log('🔍 [ShipStation] getRates params:', JSON.stringify(getRatesParams, null, 2))
+    console.log('🔍 [ShipStation] Client type:', typeof client, client.constructor.name)
+    console.log('🔍 [ShipStation] getRates function:', typeof client.getRates)
+    
+    const apiStart = Date.now()
+    const rates = await client.getRates(getRatesParams)
     const apiElapsed = Date.now() - apiStart
+    
     console.log(`📦 [ShipStation] API responded in ${apiElapsed}ms with ${rates.length} rates`)
+    console.log('📦 [ShipStation] Rates received:', JSON.stringify(rates, null, 2))
     req.payload.logger.info(`📦 [ShipStation] API responded in ${apiElapsed}ms with ${rates.length} rates`)
 
     const elapsed = Date.now() - startTime
