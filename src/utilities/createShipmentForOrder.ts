@@ -85,15 +85,14 @@ export async function createShipmentForOrder(
           shipment_status: 'pending',
           ship_to: {
             name: `${shippingAddress.firstName || ''} ${shippingAddress.lastName || ''}`.trim() || 'Customer',
-            company_name: shippingAddress.company,
-            address_line1: shippingAddress.addressLine1,
-            address_line2: shippingAddress.addressLine2,
-            address_line3: shippingAddress.addressLine3,
-            city_locality: shippingAddress.city,
-            state_province: shippingAddress.state,
-            postal_code: shippingAddress.postalCode,
-            country_code: shippingAddress.country,
-            phone: shippingAddress.phone,
+            company_name: shippingAddress.company || undefined,
+            address_line1: shippingAddress.addressLine1 || '',
+            address_line2: shippingAddress.addressLine2 || undefined,
+            city_locality: shippingAddress.city || '',
+            state_province: shippingAddress.state || '',
+            postal_code: shippingAddress.postalCode || '',
+            country_code: shippingAddress.country || '',
+            phone: shippingAddress.phone || undefined,
             address_residential_indicator: 'yes',
           },
           items,
@@ -105,15 +104,15 @@ export async function createShipmentForOrder(
               },
             },
           ] : undefined,
-          amount_paid: order.total ? {
+          amount_paid: (order as any).total ? {
             currency: (order as any).currency || 'USD', // TODO: Get from order currency field
-            amount: order.total,
+            amount: (order as any).total,
           } : undefined,
-          shipping_paid: order.selectedRate?.cost ? {
+          shipping_paid: (order as any).shippingCost ? {
             currency: (order as any).currency || 'USD', // TODO: Get from order currency field
-            amount: order.selectedRate.cost,
+            amount: (order as any).shippingCost,
           } : undefined,
-          notes_from_buyer: order.customerNotes,
+          notes_from_buyer: (order as any).customerNotes,
         },
       ],
     }
@@ -140,7 +139,7 @@ export async function createShipmentForOrder(
       id: orderId,
       data: {
         shippingDetails: {
-          ...order.shippingDetails,
+          ...(order.shippingDetails as any),
           shipstationShipmentId: createdShipment.shipment_id,
           shippingStatus: 'processing',
         },

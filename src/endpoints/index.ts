@@ -9,6 +9,7 @@ import {
   getCarrierHandler, 
   listCarrierServicesHandler 
 } from './listCarriers'
+import { updateCartShippingHandler } from './updateCartShipping'
 
 /**
  * Get all shipping endpoints
@@ -19,6 +20,11 @@ export function getShippingEndpoints(): Endpoint[] {
       path: '/shipping/calculate-rates',
       method: 'post',
       handler: calculateRatesHandler,
+    },
+    {
+      path: '/cart/update-shipping',
+      method: 'post',
+      handler: updateCartShippingHandler,
     },
     {
       path: '/shipping/validate-address',
