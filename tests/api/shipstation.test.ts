@@ -402,4 +402,223 @@ describe('ShipStationClient', () => {
       )
     })
   })
+
+  describe('listCarriers', () => {
+    it('should successfully list carriers', async () => {
+      const mockCarriersResponse = {
+        carriers: [
+          {
+            carrier_id: 'se-123456',
+            carrier_code: 'fedex',
+            carrier_name: 'FedEx',
+            nickname: 'FedEx Account',
+            account_number: '12345',
+            services: [
+              {
+                service_code: 'fedex_ground',
+                name: 'FedEx Ground',
+                domestic: true,
+                international: false,
+              },
+            ],
+          },
+          {
+            carrier_id: 'se-789012',
+            carrier_code: 'usps',
+            carrier_name: 'USPS',
+            services: [
+              {
+                service_code: 'usps_priority_mail',
+                name: 'Priority Mail',
+                domestic: true,
+                international: false,
+              },
+            ],
+          },
+        ],
+      }
+
+      const mockFetch = createMockFetch({
+        'GET https://docs.shipstation.com/_mock/openapi/v2/carriers': mockCarriersResponse,
+      })
+      global.fetch = mockFetch as any
+
+      const carriers = await client.listCarriers()
+
+      expect(carriers).toHaveLength(2)
+      expect(carriers[0]).toMatchObject({
+        carrier_id: 'se-123456',
+        carrier_code: 'fedex',
+        carrier_name: 'FedEx',
+      })
+      expect(carriers[1]).toMatchObject({
+        carrier_id: 'se-789012',
+        carrier_code: 'usps',
+        carrier_name: 'USPS',
+      })
+      expect(mockFetch).toHaveBeenCalledOnce()
+    })
+
+    it('should return empty array when no carriers', async () => {
+      const mockFetch = createMockFetch({
+        'GET https://docs.shipstation.com/_mock/openapi/v2/carriers': { carriers: [] },
+      })
+      global.fetch = mockFetch as any
+
+      const carriers = await client.listCarriers()
+
+      expect(carriers).toEqual([])
+      expect(mockFetch).toHaveBeenCalledOnce()
+    })
+
+    it('should throw error on API failure', async () => {
+      const mockFetch = createMockFetch({
+        'GET https://docs.shipstation.com/_mock/openapi/v2/carriers': {
+          error: true,
+          status: 400,
+          message: 'Bad Request',
+        },
+      })
+      global.fetch = mockFetch as any
+
+      await expect(client.listCarriers()).rejects.toThrow(ShipStationError)
+    })
+  })
+
+  describe('getCarrier', () => {
+    it('should successfully get carrier details', async () => {
+      const carrierId = 'se-123456'
+      const mockCarrierResponse = {
+        carrier_id: 'se-123456',
+        carrier_code: 'fedex',
+        carrier_name: 'FedEx',
+        services: [
+          {
+            service_code: 'fedex_ground',
+            name: 'FedEx Ground',
+            domestic: true,
+            international: false,
+          },
+        ],
+        packages: [
+          {
+            package_code: 'package',
+            name: 'Package',
+          },
+        ],
+        options: [
+          {
+            option_code: 'saturday_delivery',
+            name: 'Saturday Delivery',
+          },
+        ],
+      }
+
+      const mockFetch = createMockFetch({
+        [`GET https://docs.shipstation.com/_mock/openapi/v2/carriers/${carrierId}`]:
+          mockCarrierResponse,
+      })
+      global.fetch = mockFetch as any
+
+      const carrier = await client.getCarrier(carrierId)
+
+      expect(carrier).toMatchObject({
+        carrier_id: 'se-123456',
+        carrier_code: 'fedex',
+        carrier_name: 'FedEx',
+      })
+      expect(carrier.services).toHaveLength(1)
+      expect(carrier.packages).toHaveLength(1)
+      expect(carrier.options).toHaveLength(1)
+      expect(mockFetch).toHaveBeenCalledOnce()
+    })
+
+    it('should throw error if carrier not found', async () => {
+      const carrierId = 'invalid_id'
+      const mockFetch = createMockFetch({
+        [`GET https://docs.shipstation.com/_mock/openapi/v2/carriers/${carrierId}`]: {
+          error: true,
+          status: 404,
+          message: 'Carrier not found',
+        },
+      })
+      global.fetch = mockFetch as any
+
+      await expect(client.getCarrier(carrierId)).rejects.toThrow(ShipStationError)
+    })
+  })
+
+  describe('listCarrierServices', () => {
+    it('should successfully list carrier services', async () => {
+      const carrierId = 'se-123456'
+      const mockServicesResponse = {
+        services: [
+          {
+            service_code: 'fedex_ground',
+            name: 'FedEx Ground',
+            domestic: true,
+            international: false,
+            description: 'Ground delivery service',
+          },
+          {
+            service_code: 'fedex_2day',
+            name: 'FedEx 2Day',
+            domestic: true,
+            international: false,
+            description: '2-day delivery service',
+          },
+        ],
+      }
+
+      const mockFetch = createMockFetch({
+        [`GET https://docs.shipstation.com/_mock/openapi/v2/carriers/${carrierId}/services`]:
+          mockServicesResponse,
+      })
+      global.fetch = mockFetch as any
+
+      const services = await client.listCarrierServices(carrierId)
+
+      expect(services).toHaveLength(2)
+      expect(services[0]).toMatchObject({
+        service_code: 'fedex_ground',
+        name: 'FedEx Ground',
+        domestic: true,
+        international: false,
+      })
+      expect(services[1]).toMatchObject({
+        service_code: 'fedex_2day',
+        name: 'FedEx 2Day',
+      })
+      expect(mockFetch).toHaveBeenCalledOnce()
+    })
+
+    it('should return empty array when no services', async () => {
+      const carrierId = 'se-123456'
+      const mockFetch = createMockFetch({
+        [`GET https://docs.shipstation.com/_mock/openapi/v2/carriers/${carrierId}/services`]: {
+          services: [],
+        },
+      })
+      global.fetch = mockFetch as any
+
+      const services = await client.listCarrierServices(carrierId)
+
+      expect(services).toEqual([])
+      expect(mockFetch).toHaveBeenCalledOnce()
+    })
+
+    it('should throw error on API failure', async () => {
+      const carrierId = 'se-123456'
+      const mockFetch = createMockFetch({
+        [`GET https://docs.shipstation.com/_mock/openapi/v2/carriers/${carrierId}/services`]: {
+          error: true,
+          status: 400,
+          message: 'Bad Request',
+        },
+      })
+      global.fetch = mockFetch as any
+
+      await expect(client.listCarrierServices(carrierId)).rejects.toThrow(ShipStationError)
+    })
+  })
 })

@@ -224,6 +224,74 @@ export class ShipStationClient {
     }
   }
 
+  /**
+   * List all carriers connected to the account
+   * Returns carrier IDs, names, and available services
+   */
+  async listCarriers(): Promise<Array<{
+    carrier_id: string
+    carrier_code: string
+    carrier_name: string
+    nickname?: string
+    account_number?: string
+    services?: Array<{
+      service_code: string
+      name: string
+      domestic: boolean
+      international: boolean
+    }>
+  }>> {
+    const url = `${this.baseUrl}/v2/carriers`
+    
+    try {
+      const response = await this.makeRequest<{ carriers: any[] }>('GET', url)
+      return response.carriers || []
+    } catch (error) {
+      throw this.handleError(error, 'Failed to list carriers')
+    }
+  }
+
+  /**
+   * Get details for a specific carrier including available services
+   */
+  async getCarrier(carrierId: string): Promise<{
+    carrier_id: string
+    carrier_code: string
+    carrier_name: string
+    services?: any[]
+    packages?: any[]
+    options?: any[]
+  }> {
+    const url = `${this.baseUrl}/v2/carriers/${carrierId}`
+    
+    try {
+      const response = await this.makeRequest<any>('GET', url)
+      return response
+    } catch (error) {
+      throw this.handleError(error, 'Failed to get carrier details')
+    }
+  }
+
+  /**
+   * List available services for a specific carrier
+   */
+  async listCarrierServices(carrierId: string): Promise<Array<{
+    service_code: string
+    name: string
+    domestic: boolean
+    international: boolean
+    description?: string
+  }>> {
+    const url = `${this.baseUrl}/v2/carriers/${carrierId}/services`
+    
+    try {
+      const response = await this.makeRequest<any>('GET', url)
+      return response.services || []
+    } catch (error) {
+      throw this.handleError(error, 'Failed to list carrier services')
+    }
+  }
+
   async createLabel(params: any): Promise<any> {
     // To be implemented in Phase 2
     return {}
