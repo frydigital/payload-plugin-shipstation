@@ -1,15 +1,15 @@
 import type {
   Dimensions,
+  ShipStationAddress,
   ShipStationCalculateRatesRequest,
   ShipStationCalculateRatesResponse,
+  ShipStationCarrier,
   ShipStationCreateShipmentRequest,
   ShipStationCreateShipmentResponse,
   ShipStationError as ShipStationErrorType,
   ShipStationGetShipmentResponse,
   ShipStationPackage,
   ShipStationRate,
-  ShipStationAddress,
-  ShipStationCarrier,
   ShippingAddress,
   Weight
 } from '../types'

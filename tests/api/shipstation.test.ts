@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ShipStationClient, ShipStationError } from '../../src/api/shipstation'
 import {
+  mockShipStationGetResponse,
   mockShipStationRequest,
   mockShipStationSuccessResponse,
-  mockShipStationGetResponse,
 } from '../mockData'
 import { createMockFetch } from '../testUtils'
 
