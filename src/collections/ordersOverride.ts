@@ -33,7 +33,7 @@ export const getOrdersOverride = (): Partial<CollectionConfig> => {
           }
 
           // Check if shipment already exists
-          if (doc.shippingDetails?.shipstationShipmentId) {
+          if (doc.shippingDetails?.shipmentId) {
             req.payload.logger.info(`Order ${doc.id} already has shipment, skipping`)
             return doc
           }
@@ -69,8 +69,6 @@ export const getOrdersOverride = (): Partial<CollectionConfig> => {
                 ...(doc.shippingDetails || {}),
                 // Use correct field name per schema
                 shipmentId: result.shipmentId,
-                // Keep legacy key if previously used (harmless extra)
-                shipstationShipmentId: result.shipmentId,
                 shippingStatus: 'processing',
                 shippingCost: derivedShippingCost,
                 carrierCode: (doc as any).selectedRate?.carrierCode ?? (doc as any).shippingDetails?.carrierCode,

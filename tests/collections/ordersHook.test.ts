@@ -150,7 +150,7 @@ describe('orders collection afterChange hook', () => {
         ...mockOrder,
         status: 'processing',
         shippingDetails: {
-          shipstationShipmentId: 'se-existing-123',
+          shipmentId: 'se-existing-123',
         },
       }
 

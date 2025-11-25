@@ -62,7 +62,7 @@ describe('createShipmentForOrder', () => {
         id: 'order_123',
         data: expect.objectContaining({
           shippingDetails: expect.objectContaining({
-            shipstationShipmentId: 'se-123456789',
+            shipmentId: 'se-123456789',
             shippingStatus: 'processing',
           }),
         }),

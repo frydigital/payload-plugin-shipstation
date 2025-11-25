@@ -169,7 +169,6 @@ export async function createShipmentForOrder(
       data: {
         shippingDetails: {
           shipmentId: createdShipment.shipment_id,
-          shipstationShipmentId: createdShipment.shipment_id,
           shippingStatus: 'processing',
           shippingCost,
           carrierCode: order.selectedRate?.carrierCode,
