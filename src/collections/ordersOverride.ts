@@ -18,9 +18,9 @@ export const getOrdersOverride = (): Partial<CollectionConfig> => {
             return doc
           }
 
-          // Check if order status is 'processing' (either new order or status change)
+          // Only trigger on status change to 'processing' (not on create)
           const isProcessing = doc.status === 'processing'
-          const statusChanged = operation === 'create' || (previousDoc?.status !== doc.status)
+          const statusChanged = previousDoc && previousDoc.status !== doc.status
           
           if (!isProcessing || !statusChanged) {
             return doc

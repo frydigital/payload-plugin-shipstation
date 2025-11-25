@@ -45,7 +45,17 @@ export async function createShipmentForOrder(
       const product = typeof item.product === 'object' ? item.product : undefined
       const variant = typeof item.variant === 'object' ? item.variant : undefined
       const unitPrice = typeof item.unitPrice === 'number' ? { currency: item.currency || order.currency || 'CAD', amount: item.unitPrice / 100 } : undefined
-      const weight = item.weight?.value && item.weight.unit ? { value: item.weight.value, unit: item.weight.unit } : undefined
+      
+      // Extract weight from item, variant shippingDetails, or product shippingDetails
+      let weight: { value: number; unit: 'kilogram' | 'gram' | 'pound' | 'ounce' } | undefined
+      if (item.weight?.value && item.weight.unit) {
+        weight = { value: item.weight.value, unit: item.weight.unit as 'kilogram' | 'gram' | 'pound' | 'ounce' }
+      } else if ((variant as any)?.shippingDetails?.weight?.value && (variant as any)?.shippingDetails?.weight?.unit) {
+        weight = { value: (variant as any).shippingDetails.weight.value, unit: (variant as any).shippingDetails.weight.unit }
+      } else if ((product as any)?.shippingDetails?.weight?.value && (product as any)?.shippingDetails?.weight?.unit) {
+        weight = { value: (product as any).shippingDetails.weight.value, unit: (product as any).shippingDetails.weight.unit }
+      }
+      
       return {
         name: variant?.title || product?.title || 'Unknown Product',
         sku: variant?.sku || product?.sku || undefined,
@@ -57,17 +67,37 @@ export async function createShipmentForOrder(
 
     // Weight aggregation across items -> kilograms
     const totalWeightKg = (order.items || []).reduce((sum, item) => {
-      const w = item.weight
+      const product = typeof item.product === 'object' ? item.product : undefined
+      const variant = typeof item.variant === 'object' ? item.variant : undefined
+      
+      // Extract weight from item, variant, or product (same cascade as above)
+      let w: { value: number; unit: string } | undefined
+      if (item.weight?.value && item.weight.unit) {
+        w = { value: item.weight.value, unit: item.weight.unit }
+      } else if ((variant as any)?.shippingDetails?.weight?.value && (variant as any)?.shippingDetails?.weight?.unit) {
+        w = (variant as any).shippingDetails.weight
+      } else if ((product as any)?.shippingDetails?.weight?.value && (product as any)?.shippingDetails?.weight?.unit) {
+        w = (product as any).shippingDetails.weight
+      }
+      
       if (!w?.value || !w.unit) return sum
-      const v = w.value
-      switch (w.unit) {
+      
+      const quantity = item.quantity || 1
+      const v = w.value * quantity
+      const unit = w.unit.toLowerCase()
+      
+      switch (unit) {
         case 'kilogram':
+        case 'kg':
           return sum + v
         case 'gram':
+        case 'g':
           return sum + v / 1000
         case 'pound':
+        case 'lb':
           return sum + v * 0.45359237
         case 'ounce':
+        case 'oz':
           return sum + v * 0.0283495231
         default:
           return sum
@@ -130,6 +160,25 @@ export async function createShipmentForOrder(
       const errorMessages = createdShipment.errors.map((e) => e.message).join(', ')
       throw new Error(`ShipStation errors: ${errorMessages}`)
     }
+    
+    // Update order with shipment details
+    const shippingCost = order.shippingCost ?? order.selectedRate?.cost ?? (order.total && order.amount && order.total > order.amount ? order.total - order.amount : undefined)
+    await payload.update({
+      collection: 'orders',
+      id: orderId,
+      data: {
+        shippingDetails: {
+          shipmentId: createdShipment.shipment_id,
+          shipstationShipmentId: createdShipment.shipment_id,
+          shippingStatus: 'processing',
+          shippingCost,
+          carrierCode: order.selectedRate?.carrierCode,
+          serviceCode: order.selectedRate?.serviceCode,
+        },
+      },
+    })
+    payload.logger.info(`Shipment created successfully: ${createdShipment.shipment_id}`)
+    
     return { success: true, shipmentId: createdShipment.shipment_id }
   } catch (error) {
     payload.logger.error(`Shipment creation failed: ${(error as Error).message}`)
