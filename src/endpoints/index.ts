@@ -1,9 +1,15 @@
 import type { Endpoint } from 'payload'
 import { calculateRatesHandler } from './calculateRates'
 import { cartShippingEligibilityHandler } from './cartShippingEligibility'
+import { createShipmentHandler } from './createShipment'
+import {
+    getCarrierHandler,
+    listCarrierServicesHandler,
+    listCarriersHandler
+} from './listCarriers'
+import { updateCartShippingHandler } from './updateCartShipping'
 import { validateAddressHandler } from './validateAddress'
 import { webhooksHandler } from './webhooks'
-import { createShipmentHandler } from './createShipment'
 
 /**
  * Get all shipping endpoints
@@ -14,6 +20,11 @@ export function getShippingEndpoints(): Endpoint[] {
       path: '/shipping/calculate-rates',
       method: 'post',
       handler: calculateRatesHandler,
+    },
+    {
+      path: '/cart/update-shipping',
+      method: 'post',
+      handler: updateCartShippingHandler,
     },
     {
       path: '/shipping/validate-address',
@@ -34,6 +45,21 @@ export function getShippingEndpoints(): Endpoint[] {
       path: '/cart/shipping-eligibility',
       method: 'post',
       handler: cartShippingEligibilityHandler,
+    },
+    {
+      path: '/shipping/carriers',
+      method: 'get',
+      handler: listCarriersHandler,
+    },
+    {
+      path: '/shipping/carriers/:carrierId',
+      method: 'get',
+      handler: getCarrierHandler,
+    },
+    {
+      path: '/shipping/carriers/:carrierId/services',
+      method: 'get',
+      handler: listCarrierServicesHandler,
     },
   ]
 }

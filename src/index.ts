@@ -107,6 +107,13 @@ export const shipStationPlugin =
           const ordersOverride = getOrdersOverride()
           return {
             ...collection,
+            hooks: {
+              ...collection.hooks,
+              afterChange: [
+                ...(collection.hooks?.afterChange || []),
+                ...(ordersOverride.hooks?.afterChange || []),
+              ],
+            },
             fields: [
               ...collection.fields,
               ...(ordersOverride.fields || []),
@@ -134,7 +141,7 @@ export const shipStationPlugin =
       const client = new ShipStationClient({
         apiKey: pluginOptions.apiKey!,
         warehouseId: pluginOptions.warehouseId!,
-        sandboxMode: pluginOptions.sandboxMode,
+        apiUrl: process.env.SHIPSTATION_API_URL,
       })
 
       // Store client in payload for access in endpoints/hooks
@@ -156,7 +163,6 @@ export const shipStationPlugin =
 
       // Log plugin configuration
       payload.logger.info('ShipStation Plugin: Initialized successfully')
-      payload.logger.info(`  Sandbox Mode: ${pluginOptions.sandboxMode ? 'Enabled' : 'Disabled'}`)
       payload.logger.info(`  Address Validation: ${pluginOptions.enabledFeatures?.addressValidation ? 'Enabled' : 'Disabled'}`)
       payload.logger.info(`  Multi-Package: ${pluginOptions.enabledFeatures?.multiPackage ? 'Enabled' : 'Disabled'}`)
       payload.logger.info(`  Auto-Create Shipments: ${pluginOptions.enabledFeatures?.autoCreateShipments ? 'Enabled' : 'Disabled'}`)

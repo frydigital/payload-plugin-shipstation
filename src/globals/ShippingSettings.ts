@@ -53,14 +53,6 @@ export const ShippingSettings: GlobalConfig = {
                 placeholder: 'se-123456',
               },
             },
-            {
-              name: 'sandboxMode',
-              type: 'checkbox',
-              defaultValue: false,
-              admin: {
-                description: 'Enable sandbox/test mode for development',
-              },
-            },
           ],
         },
 

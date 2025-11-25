@@ -33,7 +33,7 @@ export function calculateEligibleSubtotal(
       excludedItems.push(item)
     } else {
       eligibleItems.push(item)
-      eligibleSubtotal += item.price * item.quantity
+      eligibleSubtotal += (item.price || 0) * item.quantity
     }
   }
   

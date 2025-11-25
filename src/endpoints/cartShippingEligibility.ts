@@ -60,6 +60,7 @@ export const cartShippingEligibilityHandler: Endpoint['handler'] = async (req) =
 
       return {
         id: item.id as string,
+        product: item.product,
         productId: typeof item.product === 'string' ? item.product : product?.id,
         variantId: typeof item.variant === 'string' ? item.variant : variant?.id,
         quantity: (item.quantity as number) || 1,

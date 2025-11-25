@@ -1,5 +1,15 @@
 import type { Endpoint } from 'payload'
 
+const normalizeWeightUnit = (unit: string): string => {
+  const map: Record<string, string> = {
+    'kg': 'kilogram',
+    'g': 'gram',
+    'lb': 'pound',
+    'oz': 'ounce',
+  }
+  return map[unit] || unit
+}
+
 export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
   const startTime = Date.now()
   try {
@@ -35,8 +45,13 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
           const product = typeof item.product === 'object' ? item.product : null
           const variant = typeof item.variant === 'object' ? item.variant : null
           
+          let weight = variant?.weight || product?.weight || { value: 1, unit: 'kilogram' }
+          if (weight && weight.unit) {
+            weight = { ...weight, unit: normalizeWeightUnit(weight.unit) }
+          }
+
           return {
-            weight: variant?.weight || product?.weight || { value: 1, unit: 'kg' },
+            weight,
             dimensions: variant?.dimensions || product?.dimensions,
             quantity: item.quantity || 1,
             requiresSignature: variant?.requiresSignature || product?.requiresSignature || false,
@@ -50,7 +65,7 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
           city: toAddress.city,
           province: toAddress.province,
           postalCode: toAddress.postalCode,
-          country: toAddress.country || 'CA',
+          country: toAddress.country, // Required field - no default
         }
         console.log(`📦 [ShipStation] Cart total: $${cartTotal}, Ship to: ${shipTo.postalCode}`)
         req.payload.logger.info(`📦 [ShipStation] Cart total: $${cartTotal}, Ship to: ${shipTo.postalCode}`)
@@ -113,17 +128,60 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
 
     console.log('📦 [ShipStation] Calling ShipStation API for rates...')
     req.payload.logger.info('📦 [ShipStation] Calling ShipStation API for rates...')
-    const apiStart = Date.now()
-    const rates = await client.getRates({
+    
+    // Get carrier IDs from settings (REQUIRED by v2 API)
+    const preferredCarriers = shippingSettings?.preferredCarriers || []
+    const carrierIds = preferredCarriers
+      .filter((c: any) => c.enabled !== false)
+      .map((c: any) => c.carrierId)
+      .filter(Boolean)
+    
+    console.log('📦 [ShipStation] Carrier IDs from settings:', carrierIds)
+    
+    if (!carrierIds || carrierIds.length === 0) {
+      console.warn('⚠️ [ShipStation] No carrier IDs configured in shipping settings - cannot fetch rates')
+      req.payload.logger.warn('⚠️ [ShipStation] No carrier IDs configured in shipping settings')
+      return Response.json({
+        rates: [],
+        freeShipping: false,
+        error: 'No carriers configured. Please add carrier IDs in shipping settings.',
+      })
+    }
+    
+    // Calculate total weight from all items
+    const totalWeight = items.reduce((sum: number, item: any) => {
+      const weight = item.weight?.value || 1
+      return sum + weight
+    }, 0)
+    
+    // Use largest dimensions from items (ShipStation will calculate based on package size)
+    const largestDimensions = items.reduce((largest: any, item: any) => {
+      if (!item.dimensions) return largest
+      if (!largest) return item.dimensions
+      const itemVolume = item.dimensions.length * item.dimensions.width * item.dimensions.height
+      const largestVolume = largest.length * largest.width * largest.height
+      return itemVolume > largestVolume ? item.dimensions : largest
+    }, null)
+    
+    const getRatesParams = {
       shipTo,
-      shipFrom: { postalCode: 'V6B 1A1', country: 'CA' },
-      weight: items[0]?.weight || { value: 1, unit: 'kg' },
-      dimensions: items[0]?.dimensions,
+      // shipFrom not needed - client will use warehouse_id internally
+      weight: { value: totalWeight, unit: items[0]?.weight?.unit || 'kilogram' }, // Default to kilogram if not specified
+      dimensions: largestDimensions,
+      carrierIds, // REQUIRED by v2 API
       requiresSignature: items.some((item: any) => item.requiresSignature),
-      residential: true,
-    })
+      residential: shipTo.addressResidentialIndicator === 'yes' ? true : shipTo.addressResidentialIndicator === 'no' ? false : undefined, // Pass undefined to default to 'unknown'
+    }
+    console.log('🔍 [ShipStation] getRates params:', JSON.stringify(getRatesParams, null, 2))
+    console.log('🔍 [ShipStation] Client type:', typeof client, client.constructor.name)
+    console.log('🔍 [ShipStation] getRates function:', typeof client.getRates)
+    
+    const apiStart = Date.now()
+    const rates = await client.getRates(getRatesParams)
     const apiElapsed = Date.now() - apiStart
+    
     console.log(`📦 [ShipStation] API responded in ${apiElapsed}ms with ${rates.length} rates`)
+    console.log('📦 [ShipStation] Rates received:', JSON.stringify(rates, null, 2))
     req.payload.logger.info(`📦 [ShipStation] API responded in ${apiElapsed}ms with ${rates.length} rates`)
 
     const elapsed = Date.now() - startTime
