@@ -13,23 +13,14 @@ export async function createShipmentForOrder(
   orderDoc?: any
 ): Promise<{ success: boolean; shipmentId?: string; error?: string }> {
   try {
-    console.warn(`🔥 [createShipmentForOrder] START: Order ID: ${orderId}`)
-    console.warn(`🔥 [createShipmentForOrder] Client exists: ${!!client}`)
-    console.warn(`🔥 [createShipmentForOrder] PluginOptions exists: ${!!pluginOptions}`)
-    console.warn(`🔥 [createShipmentForOrder] OrderDoc provided: ${!!orderDoc}`)
-    
-    // Use provided order doc or fetch it
     let order
     if (orderDoc) {
-      console.warn(`🔥 [createShipmentForOrder] Using provided order doc`)
       order = orderDoc
     } else {
-      console.warn(`🔥 [createShipmentForOrder] Fetching order...`)
       order = await payload.findByID({
         collection: 'orders',
         id: orderId,
       })
-      console.warn(`🔥 [createShipmentForOrder] Order fetched successfully`)
     }
 
     if (!order) {
@@ -61,23 +52,15 @@ export async function createShipmentForOrder(
       throw new Error('Warehouse ID not configured (set SHIPSTATION_WAREHOUSE_ID environment variable)')
     }
 
-    // Map order items to ShipStation format
+    // ShipStation v2 item unit_price is optional; pricing is driven by amount_paid / shipping_paid.
+    // Order line items do not contain a stored unit price field, so we omit unit_price to avoid inaccurate data.
     const items = (order.items || []).map((item: any) => {
       const product = item.product
       const variant = item.variant
-      
       return {
         name: variant?.title || product?.title || 'Unknown Product',
         sku: variant?.sku || product?.sku || undefined,
         quantity: item.quantity || 1,
-        unit_price: item.price ? {
-          currency: (order as any).currency || 'USD', // TODO: Get from order currency field
-          amount: item.price,
-        } : undefined,
-        weight: variant?.shippingDetails?.weight || product?.shippingDetails?.weight ? {
-          value: variant?.shippingDetails?.weight?.value || product?.shippingDetails?.weight?.value,
-          unit: variant?.shippingDetails?.weight?.unit || product?.shippingDetails?.weight?.unit,
-        } : undefined,
       }
     })
 
@@ -97,8 +80,10 @@ export async function createShipmentForOrder(
           external_shipment_id: orderId,
           shipment_status: 'pending',
           warehouse_id: warehouseId,
-          // Only include carrier_id if present; service_code is not part of v2 create shipments schema
+          // Include carrier_id and service_code from selected rate (log if missing)
           ...( (order as any).selectedRate?.carrierId ? { carrier_id: (order as any).selectedRate?.carrierId } : {} ),
+          ...( (order as any).selectedRate?.serviceCode ? { service_code: (order as any).selectedRate?.serviceCode } : {} ),
+          ...(!(order as any).selectedRate?.serviceCode ? { } : {}),
           create_sales_order: true,
           ship_to: {
             name: `${shippingAddress.firstName || ''} ${shippingAddress.lastName || ''}`.trim() || 'Customer',
@@ -121,19 +106,38 @@ export async function createShipmentForOrder(
               },
             },
           ] : undefined,
+          // amount_paid should reflect total paid (subtotal + shipping). If total missing, fallback to amount (subtotal without shipping).
           amount_paid: (order as any).total ? {
             currency: (order as any).currency || 'CAD',
-            amount: (order as any).total / 100, // Convert cents to dollars
+            amount: (order as any).total / 100,
+          } : (order as any).amount ? {
+            currency: (order as any).currency || 'CAD',
+            amount: (order as any).amount / 100,
           } : undefined,
+          // shipping_paid reflects shipping cost only; fallback cascade: shippingCost -> selectedRate.cost -> derived (total - amount)
           shipping_paid: (order as any).shippingCost ? {
             currency: (order as any).currency || 'CAD',
-            amount: (order as any).shippingCost / 100, // Convert cents to dollars
+            amount: (order as any).shippingCost / 100,
+          } : (order as any).selectedRate?.cost ? {
+            currency: (order as any).selectedRate?.currency || (order as any).currency || 'CAD',
+            amount: (order as any).selectedRate.cost / 100,
+          } : (order as any).total && (order as any).amount && (order as any).total > (order as any).amount ? {
+            currency: (order as any).currency || 'CAD',
+            amount: ((order as any).total - (order as any).amount) / 100,
           } : undefined,
           notes_from_buyer: (order as any).customerNotes,
         },
       ],
     }
-
+    if (!(order as any).selectedRate?.serviceCode) {
+      console.warn('[ShipStation Debug] WARNING: selectedRate.serviceCode missing; service_code will be absent')
+    }
+    if (!shipmentRequest.shipments[0].shipping_paid) {
+      console.warn('[ShipStation Debug] WARNING: shipping_paid unresolved (no shippingCost, selectedRate.cost, or derivable difference)')
+    } else {
+      console.warn('[ShipStation Debug] shipping_paid resolved:', shipmentRequest.shipments[0].shipping_paid)
+    }
+    console.warn('[ShipStation Debug] amount_paid resolved:', shipmentRequest.shipments[0].amount_paid)
     console.warn(`🔥 [createShipmentForOrder] Prepared Request for Order ${orderId}:`, JSON.stringify(shipmentRequest, null, 2))
 
     // Create shipment in ShipStation
@@ -152,10 +156,6 @@ export async function createShipmentForOrder(
         const errorMessages = createdShipment.errors.map((e: any) => e.message).join(', ')
         throw new Error(`ShipStation errors: ${errorMessages}`)
       }
-
-      console.warn(`✅ [createShipmentForOrder] ShipStation API success! Shipment ID: ${createdShipment.shipment_id}`)
-      payload.logger.info(`Shipment created successfully: ${createdShipment.shipment_id}`)
-
       // Return shipment data - let the hook update the doc directly
       return {
         success: true,

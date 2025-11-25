@@ -60,12 +60,27 @@ export const getOrdersOverride = (): Partial<CollectionConfig> => {
             console.warn(`🔥 [ordersOverride] createShipmentForOrder returned:`, result)
             
             if (result.success) {
+              // Derive shipping cost (cents) cascade: doc.shippingCost -> selectedRate.cost -> total - amount
+              const derivedShippingCost = (doc as any).shippingCost ?? (doc as any).selectedRate?.cost ?? ((doc as any).total && (doc as any).amount && (doc as any).total > (doc as any).amount ? (doc as any).total - (doc as any).amount : undefined)
+              console.warn(`🔥 [ordersOverride] Derived shippingCost (cents):`, derivedShippingCost)
               // Mutate doc in-place to avoid race condition with payment flow
               console.warn(`🔥 [ordersOverride] Updating doc.shippingDetails in-place with shipment ID: ${result.shipmentId}`)
               doc.shippingDetails = {
                 ...(doc.shippingDetails || {}),
+                // Use correct field name per schema
+                shipmentId: result.shipmentId,
+                // Keep legacy key if previously used (harmless extra)
                 shipstationShipmentId: result.shipmentId,
                 shippingStatus: 'processing',
+                shippingCost: derivedShippingCost,
+                carrierCode: (doc as any).selectedRate?.carrierCode ?? (doc as any).shippingDetails?.carrierCode,
+                serviceCode: (doc as any).selectedRate?.serviceCode ?? (doc as any).shippingDetails?.serviceCode,
+              }
+              if (!(doc as any).selectedRate?.serviceCode) {
+                console.warn('⚠️ [ordersOverride] selectedRate.serviceCode missing; service type not persisted')
+              }
+              if (derivedShippingCost == null) {
+                console.warn('⚠️ [ordersOverride] shippingCost could not be derived (no shippingCost / selectedRate.cost / total-amount)')
               }
               req.payload.logger.info(`Shipment created successfully for order ${doc.id}`)
             } else {
