@@ -1,5 +1,5 @@
-import type { Payload } from 'payload'
-import type { ShipStationCreateShipmentRequest } from '../types'
+import type { Payload } from 'payload';
+import type { ShipStationCreateShipmentRequest } from '../types';
 
 /**
  * Helper function to create a shipment for an order
@@ -9,14 +9,28 @@ export async function createShipmentForOrder(
   payload: Payload,
   orderId: string,
   client: any,
-  pluginOptions: any
+  pluginOptions: any,
+  orderDoc?: any
 ): Promise<{ success: boolean; shipmentId?: string; error?: string }> {
   try {
-    // Fetch the order
-    const order = await payload.findByID({
-      collection: 'orders',
-      id: orderId,
-    })
+    console.warn(`🔥 [createShipmentForOrder] START: Order ID: ${orderId}`)
+    console.warn(`🔥 [createShipmentForOrder] Client exists: ${!!client}`)
+    console.warn(`🔥 [createShipmentForOrder] PluginOptions exists: ${!!pluginOptions}`)
+    console.warn(`🔥 [createShipmentForOrder] OrderDoc provided: ${!!orderDoc}`)
+    
+    // Use provided order doc or fetch it
+    let order
+    if (orderDoc) {
+      console.warn(`🔥 [createShipmentForOrder] Using provided order doc`)
+      order = orderDoc
+    } else {
+      console.warn(`🔥 [createShipmentForOrder] Fetching order...`)
+      order = await payload.findByID({
+        collection: 'orders',
+        id: orderId,
+      })
+      console.warn(`🔥 [createShipmentForOrder] Order fetched successfully`)
+    }
 
     if (!order) {
       throw new Error('Order not found')
@@ -81,8 +95,11 @@ export async function createShipmentForOrder(
         {
           validate_address: 'validate_and_clean',
           external_shipment_id: orderId,
-          warehouse_id: warehouseId,
           shipment_status: 'pending',
+          warehouse_id: warehouseId,
+          // Only include carrier_id if present; service_code is not part of v2 create shipments schema
+          ...( (order as any).selectedRate?.carrierId ? { carrier_id: (order as any).selectedRate?.carrierId } : {} ),
+          create_sales_order: true,
           ship_to: {
             name: `${shippingAddress.firstName || ''} ${shippingAddress.lastName || ''}`.trim() || 'Customer',
             company_name: shippingAddress.company || undefined,
@@ -100,57 +117,56 @@ export async function createShipmentForOrder(
             {
               weight: {
                 value: totalWeight,
-                unit: 'kilogram', // Default to kilogram - products should specify their weight unit
+                unit: 'kilogram',
               },
             },
           ] : undefined,
           amount_paid: (order as any).total ? {
-            currency: (order as any).currency || 'USD', // TODO: Get from order currency field
-            amount: (order as any).total,
+            currency: (order as any).currency || 'CAD',
+            amount: (order as any).total / 100, // Convert cents to dollars
           } : undefined,
           shipping_paid: (order as any).shippingCost ? {
-            currency: (order as any).currency || 'USD', // TODO: Get from order currency field
-            amount: (order as any).shippingCost,
+            currency: (order as any).currency || 'CAD',
+            amount: (order as any).shippingCost / 100, // Convert cents to dollars
           } : undefined,
           notes_from_buyer: (order as any).customerNotes,
         },
       ],
     }
 
+    console.warn(`🔥 [createShipmentForOrder] Prepared Request for Order ${orderId}:`, JSON.stringify(shipmentRequest, null, 2))
+
     // Create shipment in ShipStation
     payload.logger.info(`Creating shipment for order ${orderId}`)
-    const shipmentResponse = await client.createShipment(shipmentRequest)
+    try {
+      const shipmentResponse = await client.createShipment(shipmentRequest)
 
-    if (!shipmentResponse.shipments || shipmentResponse.shipments.length === 0) {
-      throw new Error('ShipStation returned no shipments')
-    }
+      if (!shipmentResponse.shipments || shipmentResponse.shipments.length === 0) {
+        throw new Error('ShipStation returned no shipments')
+      }
 
-    const createdShipment = shipmentResponse.shipments[0]
+      const createdShipment = shipmentResponse.shipments[0]
 
-    // Check for errors in response
-    if (createdShipment.errors && createdShipment.errors.length > 0) {
-      const errorMessages = createdShipment.errors.map((e: any) => e.message).join(', ')
-      throw new Error(`ShipStation errors: ${errorMessages}`)
-    }
+      // Check for errors in response
+      if (createdShipment.errors && createdShipment.errors.length > 0) {
+        const errorMessages = createdShipment.errors.map((e: any) => e.message).join(', ')
+        throw new Error(`ShipStation errors: ${errorMessages}`)
+      }
 
-    // Update order with shipment information
-    await payload.update({
-      collection: 'orders',
-      id: orderId,
-      data: {
-        shippingDetails: {
-          ...(order.shippingDetails as any),
-          shipstationShipmentId: createdShipment.shipment_id,
-          shippingStatus: 'processing',
-        },
-      },
-    })
+      console.warn(`✅ [createShipmentForOrder] ShipStation API success! Shipment ID: ${createdShipment.shipment_id}`)
+      payload.logger.info(`Shipment created successfully: ${createdShipment.shipment_id}`)
 
-    payload.logger.info(`Shipment created successfully: ${createdShipment.shipment_id}`)
-
-    return {
-      success: true,
-      shipmentId: createdShipment.shipment_id,
+      // Return shipment data - let the hook update the doc directly
+      return {
+        success: true,
+        shipmentId: createdShipment.shipment_id,
+      }
+    } catch (apiError) {
+      payload.logger.error(`ShipStation API Error: ${(apiError as Error).message}`)
+      if ((apiError as any).details) {
+        payload.logger.error(`ShipStation API Error Details: ${JSON.stringify((apiError as any).details)}`)
+      }
+      throw apiError
     }
   } catch (error) {
     payload.logger.error(`Shipment creation failed: ${(error as Error).message}`)

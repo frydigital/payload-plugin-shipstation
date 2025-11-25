@@ -150,6 +150,7 @@ export class ShipStationClient {
           serviceName: rate.service_name || rate.service_type || rate.service_code,
           serviceCode: rate.service_code,
           carrierCode: rate.carrier_code || rate.carrier_id,
+          carrierId: rate.carrier_id,
           shippingAmount: {
             amount: rate.shipping_amount?.amount || 0,
             currency: rate.shipping_amount?.currency || 'CAD',
@@ -210,13 +211,20 @@ export class ShipStationClient {
   ): Promise<ShipStationCreateShipmentResponse> {
     const url = `${this.baseUrl}/v2/shipments`
     
+    console.warn(`🔥 [ShipStation] createShipment called`)
+    console.warn(`🔥 [ShipStation] Base URL: ${this.baseUrl}`)
+    console.warn(`🔥 [ShipStation] Full URL: ${url}`)
+    console.warn(`🔥 [ShipStation] Request Body:`, JSON.stringify(request, null, 2))
+    
     try {
       const response = await this.makeRequest<ShipStationCreateShipmentResponse>('POST', url, request)
       return response
     } catch (error) {
+      console.error(`❌ [ShipStation] createShipment error:`, error)
       throw this.handleError(error, 'Failed to create shipment')
     }
   }
+
 
   async getShipment(shipmentId: string): Promise<ShipStationGetShipmentResponse> {
     const url = `${this.baseUrl}/v2/shipments/${shipmentId}`
@@ -319,6 +327,8 @@ export class ShipStationClient {
     }
 
     if (body) {
+      console.warn(`🔥 [ShipStation API] Request Body for ${method} ${url}:`)
+      console.warn(JSON.stringify(body, null, 2))
       options.body = JSON.stringify(body)
     }
 
@@ -326,7 +336,25 @@ export class ShipStationClient {
     
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
-        const response = await fetch(url, options)
+        console.warn(`🔥 [ShipStation API] Attempt ${attempt + 1}: Fetching ${url}`)
+        // Log a masked curl for easy reproduction
+        try {
+          const maskedKey = this.apiKey.length > 6 ? `${this.apiKey.slice(0, 3)}***${this.apiKey.slice(-3)}` : '***'
+          const curlBody = body ? ` --data '${JSON.stringify(body)}'` : ''
+          console.warn(`🧪 cURL: curl -X ${method} '${url}' -H 'Content-Type: application/json' -H 'API-Key: ${maskedKey}'${curlBody}`)
+        } catch {}
+
+        let response: Response
+        try {
+          console.warn(`🔥 [ShipStation API] About to call fetch()...`)
+          response = await fetch(url, options)
+          console.warn(`✅ [ShipStation API] Fetch completed! Status: ${response.status} ${response.statusText}`)
+        } catch (fetchError) {
+          console.error(`❌ [ShipStation API] FETCH THREW ERROR:`, fetchError)
+          console.error(`❌ [ShipStation API] Error name: ${(fetchError as Error).name}`)
+          console.error(`❌ [ShipStation API] Error message: ${(fetchError as Error).message}`)
+          throw fetchError
+        }
         
         if (!response.ok) {
           const errorBody = await response.text()

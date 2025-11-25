@@ -107,6 +107,13 @@ export const shipStationPlugin =
           const ordersOverride = getOrdersOverride()
           return {
             ...collection,
+            hooks: {
+              ...collection.hooks,
+              afterChange: [
+                ...(collection.hooks?.afterChange || []),
+                ...(ordersOverride.hooks?.afterChange || []),
+              ],
+            },
             fields: [
               ...collection.fields,
               ...(ordersOverride.fields || []),

@@ -10,11 +10,6 @@ export const getOrdersOverride = (): Partial<CollectionConfig> => {
     hooks: {
       afterChange: [
         async ({ req, doc, previousDoc, operation }) => {
-          // Only process on update operations
-          if (operation !== 'update') {
-            return doc
-          }
-
           const config = req.payload.config as any
           const pluginOptions = config?.shipStationPlugin
 
@@ -23,10 +18,11 @@ export const getOrdersOverride = (): Partial<CollectionConfig> => {
             return doc
           }
 
-          // Check if order status changed to 'processing'
-          const statusChanged = previousDoc?.status !== doc.status && doc.status === 'processing'
+          // Check if order status is 'processing' (either new order or status change)
+          const isProcessing = doc.status === 'processing'
+          const statusChanged = operation === 'create' || (previousDoc?.status !== doc.status)
           
-          if (!statusChanged) {
+          if (!isProcessing || !statusChanged) {
             return doc
           }
 
@@ -46,37 +42,48 @@ export const getOrdersOverride = (): Partial<CollectionConfig> => {
           req.payload.logger.info(`Auto-creating shipment for order ${doc.id}`)
           
           try {
+            console.warn(`🔥 [ordersOverride] Getting ShipStation client...`)
             const client = (req.payload as any).shipStationClient
             
             if (!client) {
               req.payload.logger.error('ShipStation client not initialized')
               return doc
             }
+            console.warn(`🔥 [ordersOverride] Client found, importing utility...`)
 
             // Import the endpoint logic (we'll create a helper function)
             const { createShipmentForOrder } = await import('../utilities/createShipmentForOrder')
+            console.warn(`🔥 [ordersOverride] Utility imported, calling createShipmentForOrder...`)
+            console.warn(`🔥 [ordersOverride] Passing doc directly instead of fetching...`)
             
-            await createShipmentForOrder(req.payload, doc.id, client, pluginOptions)
+            const result = await createShipmentForOrder(req.payload, doc.id, client, pluginOptions, doc)
+            console.warn(`🔥 [ordersOverride] createShipmentForOrder returned:`, result)
             
-            req.payload.logger.info(`Shipment created successfully for order ${doc.id}`)
+            if (result.success) {
+              // Mutate doc in-place to avoid race condition with payment flow
+              console.warn(`🔥 [ordersOverride] Updating doc.shippingDetails in-place with shipment ID: ${result.shipmentId}`)
+              doc.shippingDetails = {
+                ...(doc.shippingDetails || {}),
+                shipstationShipmentId: result.shipmentId,
+                shippingStatus: 'processing',
+              }
+              req.payload.logger.info(`Shipment created successfully for order ${doc.id}`)
+            } else {
+              throw new Error(result.error || 'Unknown error')
+            }
           } catch (error) {
+            console.error(`❌ [ordersOverride] Error caught:`, error)
+            console.error(`❌ [ordersOverride] Error message: ${(error as Error).message}`)
+            console.error(`❌ [ordersOverride] Error stack:`, (error as Error).stack)
             req.payload.logger.error(`Failed to auto-create shipment for order ${doc.id}: ${(error as Error).message}`)
             
-            // Update order to manual review
-            try {
-              await req.payload.update({
-                collection: 'orders',
-                id: doc.id,
-                data: {
-                  shippingDetails: {
-                    ...doc.shippingDetails,
-                    shippingStatus: 'manual_review',
-                  },
-                },
-              })
-            } catch (updateError) {
-              req.payload.logger.error(`Failed to update order status: ${(updateError as Error).message}`)
+            // Update doc in-place to manual review (avoid race condition)
+            console.warn(`🔥 [ordersOverride] Setting shippingStatus to manual_review in-place`)
+            doc.shippingDetails = {
+              ...(doc.shippingDetails || {}),
+              shippingStatus: 'manual_review',
             }
+            req.payload.logger.warn(`Set order ${doc.id} to manual review due to shipment error`)
           }
 
           return doc
@@ -133,6 +140,14 @@ export const getOrdersOverride = (): Partial<CollectionConfig> => {
             name: 'carrierCode',
             type: 'text',
             label: 'Carrier Code',
+          },
+          {
+            name: 'carrierId',
+            type: 'text',
+            label: 'Carrier ID',
+            admin: {
+              description: 'ShipStation Carrier ID',
+            },
           },
           {
             name: 'cost',

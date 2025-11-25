@@ -347,6 +347,8 @@ export interface ShipStationCreateShipmentRequest {
     external_shipment_id?: string
     warehouse_id?: string
     carrier_id?: string
+    service_code?: string
+    carrier_code?: string
     create_sales_order?: boolean
     store_id?: string
     notes_from_buyer?: string

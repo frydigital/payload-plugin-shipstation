@@ -1,15 +1,15 @@
 import type { Endpoint } from 'payload'
 import { calculateRatesHandler } from './calculateRates'
 import { cartShippingEligibilityHandler } from './cartShippingEligibility'
-import { validateAddressHandler } from './validateAddress'
-import { webhooksHandler } from './webhooks'
 import { createShipmentHandler } from './createShipment'
-import { 
-  listCarriersHandler, 
-  getCarrierHandler, 
-  listCarrierServicesHandler 
+import {
+    getCarrierHandler,
+    listCarrierServicesHandler,
+    listCarriersHandler
 } from './listCarriers'
 import { updateCartShippingHandler } from './updateCartShipping'
+import { validateAddressHandler } from './validateAddress'
+import { webhooksHandler } from './webhooks'
 
 /**
  * Get all shipping endpoints
