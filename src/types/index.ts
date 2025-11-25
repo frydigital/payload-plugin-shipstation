@@ -234,6 +234,94 @@ export type ShipmentStatus =
 // Order Shipping Details
 // ============================================================================
 
+// Minimal representation of a product/variant used in shipment creation
+export interface OrderProductRef {
+  id?: string
+  title?: string
+  sku?: string
+}
+
+export interface OrderVariantRef {
+  id?: string
+  title?: string
+  sku?: string
+}
+
+export interface OrderLineItem {
+  product?: OrderProductRef | string
+  variant?: OrderVariantRef | string
+  quantity: number
+  /** Allocation status from ShipStation (openapi: allocation_status) */
+  allocationStatus?: string
+  /** Image URL for the item (openapi: image_url) */
+  imageUrl?: string
+  /** Individual item weight; value stored in source unit */
+  weight?: {
+    value?: number
+    unit?: WeightUnit
+  }
+  /** Unit price in cents (internal representation). Converted to dollars for ShipStation unit_price */
+  unitPrice?: number
+  /** Tax amount for the line item in cents */
+  taxAmount?: number
+  /** Shipping amount attributable to this item in cents */
+  shippingAmount?: number
+  /** Inventory location reference (openapi: inventory_location) */
+  inventoryLocation?: string
+  /** Variant/options selections (openapi: options) */
+  options?: Array<{ name?: string; value?: string }>
+  /** ShipStation product_id */
+  productId?: string
+  /** ShipStation fullfilment_sku (note spec spelling) */
+  fullfilmentSku?: string
+  /** Universal Product Code */
+  upc?: string
+  /** Currency override if different from order currency */
+  currency?: string
+}
+
+/**
+ * Subset of Order fields required for shipment creation.
+ * This mirrors the fields accessed within createShipmentForOrder.
+ */
+export interface OrderForShipment {
+  id: string
+  shippingMethod: ShippingMethod
+  shippingAddress: {
+    firstName?: string
+    lastName?: string
+    company?: string
+    addressLine1: string
+    addressLine2?: string
+    city: string
+    state: string
+    postalCode: string
+    country: string
+    phone?: string
+  }
+  items: OrderLineItem[]
+  selectedRate?: {
+    serviceName?: string
+    serviceCode?: string
+    carrierCode?: string
+    carrierId?: string
+    cost?: number
+    currency?: string
+  }
+  total?: number
+  amount?: number
+  shippingCost?: number
+  currency?: string
+  customerNotes?: string
+  shippingDetails?: {
+    shipstationShipmentId?: string
+    shipmentId?: string
+    carrierCode?: string
+    serviceCode?: string
+    shippingStatus?: string
+  }
+}
+
 export interface OrderShippingDetails {
   shipstationShipmentId?: string
   shipstationLabelId?: string

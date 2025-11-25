@@ -1,5 +1,10 @@
 import type { Payload } from 'payload';
-import type { ShipStationCreateShipmentRequest } from '../types';
+import type { OrderForShipment, OrderLineItem, ShipStationCreateShipmentRequest, ShipStationCreateShipmentResponse, ShipStationPluginOptions } from '../types';
+
+// Minimal client shape used here
+interface ShipStationClient {
+  createShipment: (request: ShipStationCreateShipmentRequest) => Promise<ShipStationCreateShipmentResponse>
+}
 
 /**
  * Helper function to create a shipment for an order
@@ -8,31 +13,19 @@ import type { ShipStationCreateShipmentRequest } from '../types';
 export async function createShipmentForOrder(
   payload: Payload,
   orderId: string,
-  client: any,
-  pluginOptions: any,
-  orderDoc?: any
+  client: ShipStationClient,
+  pluginOptions: ShipStationPluginOptions,
+  orderDoc?: OrderForShipment,
 ): Promise<{ success: boolean; shipmentId?: string; error?: string }> {
   try {
-    let order
-    if (orderDoc) {
-      order = orderDoc
-    } else {
-      order = await payload.findByID({
-        collection: 'orders',
-        id: orderId,
-      })
-    }
+    // Resolve order document
+    const order: OrderForShipment = orderDoc
+      ? orderDoc
+      : (await payload.findByID({ collection: 'orders', id: orderId })) as unknown as OrderForShipment
 
-    if (!order) {
-      throw new Error('Order not found')
-    }
+    if (!order) throw new Error('Order not found')
+    if (order.shippingMethod !== 'shipping') throw new Error('Order is not flagged for shipping')
 
-    // Validate order is for shipping (not pickup)
-    if (order.shippingMethod !== 'shipping') {
-      throw new Error('Order is not flagged for shipping')
-    }
-
-    // Validate order has shipping address
     const shippingAddress = order.shippingAddress
     if (
       !shippingAddress ||
@@ -45,34 +38,42 @@ export async function createShipmentForOrder(
       throw new Error('Order missing required shipping address fields')
     }
 
-    // Use warehouse ID from environment variable or plugin config
     const warehouseId = process.env.SHIPSTATION_WAREHOUSE_ID || pluginOptions.warehouseId
-    
-    if (!warehouseId) {
-      throw new Error('Warehouse ID not configured (set SHIPSTATION_WAREHOUSE_ID environment variable)')
-    }
+    if (!warehouseId) throw new Error('Warehouse ID not configured (set SHIPSTATION_WAREHOUSE_ID)')
 
-    // ShipStation v2 item unit_price is optional; pricing is driven by amount_paid / shipping_paid.
-    // Order line items do not contain a stored unit price field, so we omit unit_price to avoid inaccurate data.
-    const items = (order.items || []).map((item: any) => {
-      const product = item.product
-      const variant = item.variant
+    const items = (order.items || []).map((item: OrderLineItem) => {
+      const product = typeof item.product === 'object' ? item.product : undefined
+      const variant = typeof item.variant === 'object' ? item.variant : undefined
+      const unitPrice = typeof item.unitPrice === 'number' ? { currency: item.currency || order.currency || 'CAD', amount: item.unitPrice / 100 } : undefined
+      const weight = item.weight?.value && item.weight.unit ? { value: item.weight.value, unit: item.weight.unit } : undefined
       return {
         name: variant?.title || product?.title || 'Unknown Product',
         sku: variant?.sku || product?.sku || undefined,
         quantity: item.quantity || 1,
+        unit_price: unitPrice,
+        weight,
       }
     })
 
-    // Calculate total weight for package
-    const totalWeight = items.reduce((sum: number, item: any) => {
-      if (item.weight?.value && item.weight?.unit === 'kg') {
-        return sum + (item.weight.value * item.quantity)
+    // Weight aggregation across items -> kilograms
+    const totalWeightKg = (order.items || []).reduce((sum, item) => {
+      const w = item.weight
+      if (!w?.value || !w.unit) return sum
+      const v = w.value
+      switch (w.unit) {
+        case 'kilogram':
+          return sum + v
+        case 'gram':
+          return sum + v / 1000
+        case 'pound':
+          return sum + v * 0.45359237
+        case 'ounce':
+          return sum + v * 0.0283495231
+        default:
+          return sum
       }
-      return sum
     }, 0)
 
-    // Build ShipStation shipment request
     const shipmentRequest: ShipStationCreateShipmentRequest = {
       shipments: [
         {
@@ -80,10 +81,8 @@ export async function createShipmentForOrder(
           external_shipment_id: orderId,
           shipment_status: 'pending',
           warehouse_id: warehouseId,
-          // Include carrier_id and service_code from selected rate (log if missing)
-          ...( (order as any).selectedRate?.carrierId ? { carrier_id: (order as any).selectedRate?.carrierId } : {} ),
-          ...( (order as any).selectedRate?.serviceCode ? { service_code: (order as any).selectedRate?.serviceCode } : {} ),
-          ...(!(order as any).selectedRate?.serviceCode ? { } : {}),
+          ...(order.selectedRate?.carrierId ? { carrier_id: order.selectedRate.carrierId } : {}),
+          ...(order.selectedRate?.serviceCode ? { service_code: order.selectedRate.serviceCode } : {}),
           create_sales_order: true,
           ship_to: {
             name: `${shippingAddress.firstName || ''} ${shippingAddress.lastName || ''}`.trim() || 'Customer',
@@ -98,38 +97,19 @@ export async function createShipmentForOrder(
             address_residential_indicator: 'yes',
           },
           items,
-          packages: totalWeight > 0 ? [
+          packages: totalWeightKg > 0 ? [
             {
-              weight: {
-                value: totalWeight,
-                unit: 'kilogram',
-              },
+              weight: { value: parseFloat(totalWeightKg.toFixed(3)), unit: 'kilogram' },
             },
           ] : undefined,
-          // amount_paid should reflect total paid (subtotal + shipping). If total missing, fallback to amount (subtotal without shipping).
-          amount_paid: (order as any).total ? {
-            currency: (order as any).currency || 'CAD',
-            amount: (order as any).total / 100,
-          } : (order as any).amount ? {
-            currency: (order as any).currency || 'CAD',
-            amount: (order as any).amount / 100,
-          } : undefined,
-          // shipping_paid reflects shipping cost only; fallback cascade: shippingCost -> selectedRate.cost -> derived (total - amount)
-          shipping_paid: (order as any).shippingCost ? {
-            currency: (order as any).currency || 'CAD',
-            amount: (order as any).shippingCost / 100,
-          } : (order as any).selectedRate?.cost ? {
-            currency: (order as any).selectedRate?.currency || (order as any).currency || 'CAD',
-            amount: (order as any).selectedRate.cost / 100,
-          } : (order as any).total && (order as any).amount && (order as any).total > (order as any).amount ? {
-            currency: (order as any).currency || 'CAD',
-            amount: ((order as any).total - (order as any).amount) / 100,
-          } : undefined,
-          notes_from_buyer: (order as any).customerNotes,
+          amount_paid: order.total ? { currency: order.currency || 'CAD', amount: order.total / 100 } : order.amount ? { currency: order.currency || 'CAD', amount: order.amount / 100 } : undefined,
+          shipping_paid: order.shippingCost ? { currency: order.currency || 'CAD', amount: order.shippingCost / 100 } : order.selectedRate?.cost ? { currency: order.selectedRate?.currency || order.currency || 'CAD', amount: order.selectedRate.cost / 100 } : (order.total && order.amount && order.total > order.amount) ? { currency: order.currency || 'CAD', amount: (order.total - order.amount) / 100 } : undefined,
+          notes_from_buyer: order.customerNotes,
         },
       ],
     }
-    if (!(order as any).selectedRate?.serviceCode) {
+
+    if (!order.selectedRate?.serviceCode) {
       console.warn('[ShipStation Debug] WARNING: selectedRate.serviceCode missing; service_code will be absent')
     }
     if (!shipmentRequest.shipments[0].shipping_paid) {
@@ -140,40 +120,19 @@ export async function createShipmentForOrder(
     console.warn('[ShipStation Debug] amount_paid resolved:', shipmentRequest.shipments[0].amount_paid)
     console.warn(`🔥 [createShipmentForOrder] Prepared Request for Order ${orderId}:`, JSON.stringify(shipmentRequest, null, 2))
 
-    // Create shipment in ShipStation
     payload.logger.info(`Creating shipment for order ${orderId}`)
-    try {
-      const shipmentResponse = await client.createShipment(shipmentRequest)
-
-      if (!shipmentResponse.shipments || shipmentResponse.shipments.length === 0) {
-        throw new Error('ShipStation returned no shipments')
-      }
-
-      const createdShipment = shipmentResponse.shipments[0]
-
-      // Check for errors in response
-      if (createdShipment.errors && createdShipment.errors.length > 0) {
-        const errorMessages = createdShipment.errors.map((e: any) => e.message).join(', ')
-        throw new Error(`ShipStation errors: ${errorMessages}`)
-      }
-      // Return shipment data - let the hook update the doc directly
-      return {
-        success: true,
-        shipmentId: createdShipment.shipment_id,
-      }
-    } catch (apiError) {
-      payload.logger.error(`ShipStation API Error: ${(apiError as Error).message}`)
-      if ((apiError as any).details) {
-        payload.logger.error(`ShipStation API Error Details: ${JSON.stringify((apiError as any).details)}`)
-      }
-      throw apiError
+    const shipmentResponse = await client.createShipment(shipmentRequest)
+    if (!shipmentResponse.shipments || shipmentResponse.shipments.length === 0) {
+      throw new Error('ShipStation returned no shipments')
     }
+    const createdShipment = shipmentResponse.shipments[0]
+    if (createdShipment.errors && createdShipment.errors.length > 0) {
+      const errorMessages = createdShipment.errors.map((e) => e.message).join(', ')
+      throw new Error(`ShipStation errors: ${errorMessages}`)
+    }
+    return { success: true, shipmentId: createdShipment.shipment_id }
   } catch (error) {
     payload.logger.error(`Shipment creation failed: ${(error as Error).message}`)
-    
-    return {
-      success: false,
-      error: (error as Error).message,
-    }
+    return { success: false, error: (error as Error).message }
   }
 }
