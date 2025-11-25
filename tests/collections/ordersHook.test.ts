@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getOrdersOverride } from '../../src/collections/ordersOverride'
-import { createMockPayload, createMockShipStationClient } from '../testUtils'
 import { mockOrder, mockPickupOrder, mockShipStationSuccessResponse } from '../mockData'
+import { createMockPayload, createMockShipStationClient } from '../testUtils'
 
 describe('orders collection afterChange hook', () => {
   let mockPayload: any

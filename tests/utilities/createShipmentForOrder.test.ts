@@ -1,20 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createShipmentForOrder } from '../../src/utilities/createShipmentForOrder'
 import {
-  createMockPayload,
-  createMockShipStationClient,
-  mockEnv,
-} from '../testUtils'
-import {
-  mockOrder,
-  mockOrderWithVariant,
-  mockOrderNoWeight,
-  mockPickupOrder,
-  mockOrderInvalidAddress,
-  mockShipStationSuccessResponse,
-  mockShipStationErrorResponse,
-  mockPluginOptions,
+    mockOrder,
+    mockOrderInvalidAddress,
+    mockOrderNoWeight,
+    mockOrderWithVariant,
+    mockPickupOrder,
+    mockPluginOptions,
+    mockShipStationErrorResponse,
+    mockShipStationSuccessResponse,
 } from '../mockData'
+import {
+    createMockPayload,
+    createMockShipStationClient,
+    mockEnv,
+} from '../testUtils'
 
 describe('createShipmentForOrder', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
