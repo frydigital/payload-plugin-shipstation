@@ -1,13 +1,20 @@
 import type { Endpoint } from 'payload'
 
+/**
+ * Validate Address Endpoint
+ * POST /api/shipping/validate-address
+ * 
+ * Validates a shipping address using ShipStation V1 API
+ * https://www.shipstation.com/docs/api/addresses/validate-an-address/
+ */
 export const validateAddressHandler: Endpoint['handler'] = async (req) => {
   try {
     const body = req.json ? await req.json() : req.body
     const { address } = body as any
 
-    if (!address || !address.line1 || !address.city || !address.province || !address.postalCode || !address.country) {
+    if (!address || !address.street1 && !address.line1 || !address.city || !address.state && !address.province || !address.postalCode || !address.country) {
       return Response.json({
-        error: 'Invalid request: complete address required',
+        error: 'Invalid request: complete address required (street1/line1, city, state/province, postalCode, country)',
       }, { status: 400 })
     }
 
@@ -31,14 +38,21 @@ export const validateAddressHandler: Endpoint['handler'] = async (req) => {
       })
     }
 
-    const result = await client.validateAddress({
-      street1: address.line1,
-      street2: address.line2,
+    // Normalize address fields for V1 API
+    const v1Address = {
+      name: address.name,
+      company: address.company,
+      street1: address.street1 || address.line1 || address.addressLine1,
+      street2: address.street2 || address.line2 || address.addressLine2,
       city: address.city,
-      state: address.province,
+      state: address.state || address.province,
       postalCode: address.postalCode,
       country: address.country,
-    })
+      phone: address.phone,
+      residential: address.residential,
+    }
+
+    const result = await client.validateAddress(v1Address)
 
     const validationMode = shippingSettings.validationMode || 'suggest'
     const failOnInvalid = shippingSettings.failOnInvalidAddress || false

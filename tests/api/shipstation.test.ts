@@ -2,70 +2,89 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ShipStationClient, ShipStationError } from '../../src/api/shipstation'
 import {
-  mockShipStationGetResponse,
-  mockShipStationRequest,
-  mockShipStationSuccessResponse,
+  mockShipStationV1CarriersResponse,
+  mockShipStationV1OrderResponse,
+  mockShipStationV1RatesResponse,
+  mockShipStationV1ServicesResponse,
+  mockShipStationV1Shipment,
+  mockShipStationV1ValidateAddressResponse,
 } from '../mockData'
 import { createMockFetch } from '../testUtils'
 
-describe('ShipStationClient', () => {
+describe('ShipStationClient V1 API', () => {
   let client: ShipStationClient
   const mockApiKey = 'TEST_API_KEY'
-  const mockWarehouseId = 'se-warehouse-123'
+  const mockApiSecret = 'TEST_API_SECRET'
+  const mockWarehouseId = '123'
 
   beforeEach(() => {
     client = new ShipStationClient({
-      apiKey: mockApiKey,
+      apiKey: `${mockApiKey}:${mockApiSecret}`,
       warehouseId: mockWarehouseId,
     })
     vi.restoreAllMocks()
   })
 
   describe('constructor', () => {
-    it('should initialize with production URL by default', () => {
+    it('should initialize with V1 API URL by default', () => {
       const prodClient = new ShipStationClient({
         apiKey: mockApiKey,
         warehouseId: mockWarehouseId,
       })
       expect(prodClient).toBeDefined()
     })
+
+    it('should parse API key:secret format', () => {
+      const clientWithAuth = new ShipStationClient({
+        apiKey: 'mykey:mysecret',
+        warehouseId: mockWarehouseId,
+      })
+      expect(clientWithAuth.getApiKey()).toBe('mykey')
+    })
+
+    it('should use apiKey as both key and secret if no colon', () => {
+      const clientSimple = new ShipStationClient({
+        apiKey: 'mykey',
+        warehouseId: mockWarehouseId,
+      })
+      expect(clientSimple.getApiKey()).toBe('mykey')
+    })
   })
 
-  describe('createShipment', () => {
-    it('should successfully create a shipment', async () => {
+  describe('createOrder', () => {
+    it('should successfully create an order', async () => {
       const mockFetch = createMockFetch({
-        'POST https://api.shipstation.com/v2/shipments':
-          mockShipStationSuccessResponse,
+        'POST https://ssapi.shipstation.com/orders/createorder':
+          mockShipStationV1OrderResponse,
       })
       global.fetch = mockFetch as any
 
       const request = {
-        shipments: [
-          {
-            external_shipment_id: 'order_123',
-            warehouse_id: mockWarehouseId,
-            ship_to: {
-              name: 'John Doe',
-              address_line1: '123 Main St',
-              city_locality: 'Vancouver',
-              state_province: 'BC',
-              postal_code: 'V6B1A1',
-              country_code: 'CA',
-            },
-          },
-        ],
+        orderNumber: 'order_123',
+        orderKey: 'order_123',
+        orderDate: '2025-11-23T10:00:00',
+        orderStatus: 'awaiting_shipment' as const,
+        shipTo: {
+          name: 'John Doe',
+          street1: '123 Main St',
+          city: 'Vancouver',
+          state: 'BC',
+          postalCode: 'V6B1A1',
+          country: 'CA',
+        },
       }
 
-      const response = await client.createShipment(request)
+      const response = await client.createOrder(request)
 
-      expect(response).toEqual(mockShipStationSuccessResponse)
+      expect(response).toEqual(mockShipStationV1OrderResponse)
       expect(mockFetch).toHaveBeenCalledOnce()
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.shipstation.com/v2/shipments',
+        'https://ssapi.shipstation.com/orders/createorder',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
             'Content-Type': 'application/json',
+            'Authorization': expect.stringMatching(/^Basic /),
           }),
         })
       )
@@ -73,18 +92,20 @@ describe('ShipStationClient', () => {
 
     it('should throw ShipStationError on API error', async () => {
       const mockFetch = createMockFetch({
-        'POST https://api.shipstation.com/v2/shipments': {
+        'POST https://ssapi.shipstation.com/orders/createorder': {
           error: true,
           status: 400,
-          message: 'Invalid request',
-          error_code: 'INVALID_REQUEST',
+          Message: 'Invalid request',
         },
       })
       global.fetch = mockFetch as any
 
-      await expect(client.createShipment(mockShipStationRequest)).rejects.toThrow(
-        ShipStationError
-      )
+      await expect(client.createOrder({
+        orderNumber: 'test',
+        orderDate: '2025-11-23',
+        orderStatus: 'awaiting_shipment',
+        shipTo: { name: 'Test', street1: '123', city: 'Test', state: 'BC', postalCode: '12345', country: 'CA' },
+      })).rejects.toThrow(ShipStationError)
     })
 
     it('should retry on 5xx errors', async () => {
@@ -103,15 +124,20 @@ describe('ShipStationClient', () => {
         return {
           ok: true,
           status: 200,
-          json: async () => mockShipStationSuccessResponse,
+          json: async () => mockShipStationV1OrderResponse,
         }
       })
       global.fetch = mockFetch as any
 
-      const response = await client.createShipment(mockShipStationRequest)
+      const response = await client.createOrder({
+        orderNumber: 'test',
+        orderDate: '2025-11-23',
+        orderStatus: 'awaiting_shipment',
+        shipTo: { name: 'Test', street1: '123', city: 'Test', state: 'BC', postalCode: '12345', country: 'CA' },
+      })
 
-      expect(response).toEqual(mockShipStationSuccessResponse)
-      expect(callCount).toBeGreaterThan(1) // Should have retried
+      expect(response).toEqual(mockShipStationV1OrderResponse)
+      expect(callCount).toBeGreaterThan(1)
     })
 
     it('should not retry on 4xx errors', async () => {
@@ -120,118 +146,84 @@ describe('ShipStationClient', () => {
           ok: false,
           status: 400,
           statusText: 'Bad Request',
-          text: async () => JSON.stringify({ error: 'Bad Request' }),
-          json: async () => ({ error: 'Bad Request' }),
+          text: async () => JSON.stringify({ Message: 'Bad Request' }),
+          json: async () => ({ Message: 'Bad Request' }),
         }
       })
       global.fetch = mockFetch as any
 
-      await expect(client.createShipment(mockShipStationRequest)).rejects.toThrow()
-      expect(mockFetch).toHaveBeenCalledOnce() // Should not retry
+      await expect(client.createOrder({
+        orderNumber: 'test',
+        orderDate: '2025-11-23',
+        orderStatus: 'awaiting_shipment',
+        shipTo: { name: 'Test', street1: '123', city: 'Test', state: 'BC', postalCode: '12345', country: 'CA' },
+      })).rejects.toThrow()
+      expect(mockFetch).toHaveBeenCalledOnce()
     })
   })
 
   describe('getShipment', () => {
     it('should successfully get a shipment', async () => {
-      const shipmentId = 'se-123456789'
+      const shipmentId = 123456789
       const mockFetch = createMockFetch({
-        [`GET https://api.shipstation.com/v2/shipments/${shipmentId}`]:
-          mockShipStationGetResponse,
+        [`GET https://ssapi.shipstation.com/shipments?shipmentId=${shipmentId}`]:
+          { shipments: [mockShipStationV1Shipment] },
       })
       global.fetch = mockFetch as any
 
       const response = await client.getShipment(shipmentId)
 
-      expect(response).toEqual(mockShipStationGetResponse)
+      expect(response).toEqual(mockShipStationV1Shipment)
       expect(mockFetch).toHaveBeenCalledOnce()
     })
 
     it('should throw error if shipment not found', async () => {
-      const shipmentId = 'invalid_id'
+      const shipmentId = 999999999
       const mockFetch = createMockFetch({
-        [`GET https://api.shipstation.com/v2/shipments/${shipmentId}`]:
-          {
-            error: true,
-            status: 404,
-            message: 'Shipment not found',
-          },
+        [`GET https://ssapi.shipstation.com/shipments?shipmentId=${shipmentId}`]:
+          { shipments: [] },
       })
       global.fetch = mockFetch as any
 
-      await expect(client.getShipment(shipmentId)).rejects.toThrow(
-        ShipStationError
-      )
+      await expect(client.getShipment(shipmentId)).rejects.toThrow(ShipStationError)
     })
   })
 
-  describe('cancelShipment', () => {
-    it('should successfully cancel a shipment', async () => {
-      const shipmentId = 'se-123456789'
+  describe('voidLabel', () => {
+    it('should successfully void a label', async () => {
+      const shipmentId = 123456789
       const mockFetch = createMockFetch({
-        [`PUT https://api.shipstation.com/v2/shipments/${shipmentId}/cancel`]:
-          {},
+        'POST https://ssapi.shipstation.com/shipments/voidlabel':
+          { approved: true },
       })
       global.fetch = mockFetch as any
 
-      const response = await client.cancelShipment(shipmentId)
+      const response = await client.voidLabel(shipmentId)
 
-      expect(response).toEqual({ success: true })
+      expect(response).toEqual({ approved: true })
       expect(mockFetch).toHaveBeenCalledOnce()
     })
 
-    it('should throw error if cancellation fails', async () => {
-      const shipmentId = 'se-123456789'
+    it('should throw error if void fails', async () => {
+      const shipmentId = 123456789
       const mockFetch = createMockFetch({
-        [`PUT https://api.shipstation.com/v2/shipments/${shipmentId}/cancel`]:
+        'POST https://ssapi.shipstation.com/shipments/voidlabel':
           {
             error: true,
             status: 400,
-            message: 'Cannot cancel shipped shipment',
+            Message: 'Cannot void shipped label',
           },
       })
       global.fetch = mockFetch as any
 
-      await expect(client.cancelShipment(shipmentId)).rejects.toThrow(
-        ShipStationError
-      )
+      await expect(client.voidLabel(shipmentId)).rejects.toThrow(ShipStationError)
     })
   })
 
   describe('getRates', () => {
-    it('should successfully fetch rates from ShipStation API', async () => {
-      const mockRatesResponse = {
-        rate_response: {
-          rates: [
-            {
-              service_code: 'usps_priority_mail',
-              service_type: 'USPS Priority Mail',
-              carrier_code: 'stamps_com',
-              carrier_id: 'se-123456',
-              shipping_amount: { amount: 12.50, currency: 'usd' },
-              other_amount: { amount: 0, currency: 'usd' },
-              delivery_days: 3,
-              carrier_delivery_days: '2-3',
-              ship_date: '2025-11-23',
-              estimated_delivery_date: '2025-11-26',
-            },
-            {
-              service_code: 'fedex_ground',
-              service_type: 'FedEx Ground',
-              carrier_code: 'fedex',
-              carrier_id: 'se-789012',
-              shipping_amount: { amount: 15.75, currency: 'usd' },
-              other_amount: { amount: 1.25, currency: 'usd' },
-              delivery_days: 5,
-              carrier_delivery_days: '3-5',
-              ship_date: '2025-11-23',
-              estimated_delivery_date: '2025-11-28',
-            },
-          ],
-        },
-      }
-
+    it('should successfully fetch rates from ShipStation V1 API', async () => {
       const mockFetch = createMockFetch({
-        'POST https://api.shipstation.com/v2/rates': mockRatesResponse,
+        'POST https://ssapi.shipstation.com/shipments/getrates': mockShipStationV1RatesResponse,
       })
       global.fetch = mockFetch as any
 
@@ -254,34 +246,19 @@ describe('ShipStationClient', () => {
           value: 1.5,
           unit: 'kilogram',
         },
+        carrierCodes: ['canada_post'],
       })
 
       expect(rates).toHaveLength(2)
       expect(rates[0]).toMatchObject({
-        serviceName: 'USPS Priority Mail',
-        serviceCode: 'usps_priority_mail',
-        carrierCode: 'stamps_com',
-        shippingAmount: { amount: 12.50, currency: 'usd' },
-        otherAmount: { amount: 0, currency: 'usd' },
-        deliveryDays: 3,
-      })
-      expect(rates[1]).toMatchObject({
-        serviceName: 'FedEx Ground',
-        serviceCode: 'fedex_ground',
-        carrierCode: 'fedex',
-        shippingAmount: { amount: 15.75, currency: 'usd' },
-        otherAmount: { amount: 1.25, currency: 'usd' },
-        deliveryDays: 5,
+        serviceName: 'Canada Post Expedited',
+        serviceCode: 'expedited',
+        carrierCode: 'canada_post',
       })
       expect(mockFetch).toHaveBeenCalledOnce()
     })
 
-    it('should return empty array when API response has no rates', async () => {
-      const mockFetch = createMockFetch({
-        'POST https://api.shipstation.com/v2/rates': {},
-      })
-      global.fetch = mockFetch as any
-
+    it('should return empty array when no carrier codes provided', async () => {
       const rates = await client.getRates({
         shipTo: {
           addressLine1: '123 Main St',
@@ -290,18 +267,11 @@ describe('ShipStationClient', () => {
           postalCode: 'V6B1A1',
           country: 'CA',
         },
-        shipFrom: {
-          addressLine1: '456 Test St',
-          city: 'Toronto',
-          state: 'ON',
-          postalCode: 'M5V1A1',
-          country: 'CA',
-        },
         weight: {
           value: 1.5,
           unit: 'kilogram',
         },
-        carrierIds: ['se-123456'],
+        carrierCodes: [],
       })
 
       expect(rates).toEqual([])
@@ -309,10 +279,10 @@ describe('ShipStationClient', () => {
 
     it('should return empty array on API error', async () => {
       const mockFetch = createMockFetch({
-        'POST https://api.shipstation.com/v2/rates': {
+        'POST https://ssapi.shipstation.com/shipments/getrates': {
           error: true,
           status: 400,
-          message: 'Invalid shipment data',
+          Message: 'Invalid shipment data',
         },
       })
       global.fetch = mockFetch as any
@@ -336,100 +306,61 @@ describe('ShipStationClient', () => {
           value: 1.5,
           unit: 'kilogram',
         },
-        carrierIds: ['se-123456'],
+        carrierCodes: ['canada_post'],
       })
 
       expect(rates).toEqual([])
     })
+  })
 
-    it('should include optional parameters in request when provided', async () => {
-      const mockRatesResponse = {
-        rate_response: { rates: [] },
-      }
-
+  describe('validateAddress', () => {
+    it('should successfully validate an address', async () => {
       const mockFetch = createMockFetch({
-        'POST https://api.shipstation.com/v2/rates': mockRatesResponse,
+        'POST https://ssapi.shipstation.com/addresses/validate': mockShipStationV1ValidateAddressResponse,
       })
       global.fetch = mockFetch as any
 
-      await client.getRates({
-        shipTo: {
-          addressLine1: '123 Main St',
-          city: 'Vancouver',
-          state: 'BC',
-          postalCode: 'V6B1A1',
-          country: 'CA',
-        },
-        shipFrom: {
-          addressLine1: '456 Test St',
-          city: 'Toronto',
-          state: 'ON',
-          postalCode: 'M5V1A1',
-          country: 'CA',
-        },
-        weight: {
-          value: 1.5,
-          unit: 'kilogram',
-        },
-        dimensions: {
-          length: 10,
-          width: 8,
-          height: 5,
-          unit: 'centimeter',
-        },
-        carrierIds: ['se-fedex-123'],
-        serviceCode: 'fedex_ground',
-        requiresSignature: true,
-        residential: false,
+      const result = await client.validateAddress({
+        name: 'John Doe',
+        street1: '123 Main St',
+        city: 'Vancouver',
+        state: 'BC',
+        postalCode: 'V6B1A1',
+        country: 'CA',
       })
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.shipstation.com/v2/rates',
-        expect.objectContaining({
-          method: 'POST',
-          body: expect.stringContaining('"carrier_ids":["se-fedex-123"]'),
-        })
-      )
+      expect(result.isValid).toBe(true)
+      expect(result.normalizedAddress).toBeDefined()
+      expect(mockFetch).toHaveBeenCalledOnce()
+    })
+
+    it('should return isValid false on validation failure', async () => {
+      const mockFetch = createMockFetch({
+        'POST https://ssapi.shipstation.com/addresses/validate': {
+          error: true,
+          status: 400,
+          Message: 'Address not found',
+        },
+      })
+      global.fetch = mockFetch as any
+
+      const result = await client.validateAddress({
+        street1: 'Invalid Address',
+        city: 'Nowhere',
+        state: 'XX',
+        postalCode: '00000',
+        country: 'US',
+      })
+
+      expect(result.isValid).toBe(false)
+      expect(result.errors).toBeDefined()
     })
   })
 
   describe('listCarriers', () => {
     it('should successfully list carriers', async () => {
-      const mockCarriersResponse = {
-        carriers: [
-          {
-            carrier_id: 'se-123456',
-            carrier_code: 'fedex',
-            carrier_name: 'FedEx',
-            nickname: 'FedEx Account',
-            account_number: '12345',
-            services: [
-              {
-                service_code: 'fedex_ground',
-                name: 'FedEx Ground',
-                domestic: true,
-                international: false,
-              },
-            ],
-          },
-          {
-            carrier_id: 'se-789012',
-            carrier_code: 'usps',
-            carrier_name: 'USPS',
-            services: [
-              {
-                service_code: 'usps_priority_mail',
-                name: 'Priority Mail',
-                domestic: true,
-                international: false,
-              },
-            ],
-          },
-        ],
-      }
-
       const mockFetch = createMockFetch({
-        'GET https://api.shipstation.com/v2/carriers': mockCarriersResponse,
+        'GET https://ssapi.shipstation.com/carriers': mockShipStationV1CarriersResponse,
       })
       global.fetch = mockFetch as any
 
@@ -437,21 +368,19 @@ describe('ShipStationClient', () => {
 
       expect(carriers).toHaveLength(2)
       expect(carriers[0]).toMatchObject({
-        carrier_id: 'se-123456',
-        carrier_code: 'fedex',
-        carrier_name: 'FedEx',
+        name: 'FedEx',
+        code: 'fedex',
       })
       expect(carriers[1]).toMatchObject({
-        carrier_id: 'se-789012',
-        carrier_code: 'usps',
-        carrier_name: 'USPS',
+        name: 'USPS',
+        code: 'stamps_com',
       })
       expect(mockFetch).toHaveBeenCalledOnce()
     })
 
     it('should return empty array when no carriers', async () => {
       const mockFetch = createMockFetch({
-        'GET https://api.shipstation.com/v2/carriers': { carriers: [] },
+        'GET https://ssapi.shipstation.com/carriers': [],
       })
       global.fetch = mockFetch as any
 
@@ -463,10 +392,10 @@ describe('ShipStationClient', () => {
 
     it('should throw error on API failure', async () => {
       const mockFetch = createMockFetch({
-        'GET https://api.shipstation.com/v2/carriers': {
+        'GET https://ssapi.shipstation.com/carriers': {
           error: true,
           status: 400,
-          message: 'Bad Request',
+          Message: 'Bad Request',
         },
       })
       global.fetch = mockFetch as any
@@ -477,138 +406,145 @@ describe('ShipStationClient', () => {
 
   describe('getCarrier', () => {
     it('should successfully get carrier details', async () => {
-      const carrierId = 'se-123456'
+      const carrierCode = 'fedex'
       const mockCarrierResponse = {
-        carrier_id: 'se-123456',
-        carrier_code: 'fedex',
-        carrier_name: 'FedEx',
-        services: [
-          {
-            service_code: 'fedex_ground',
-            name: 'FedEx Ground',
-            domestic: true,
-            international: false,
-          },
-        ],
-        packages: [
-          {
-            package_code: 'package',
-            name: 'Package',
-          },
-        ],
-        options: [
-          {
-            option_code: 'saturday_delivery',
-            name: 'Saturday Delivery',
-          },
-        ],
+        name: 'FedEx',
+        code: 'fedex',
+        accountNumber: '12345',
+        requiresFundedAccount: false,
       }
 
       const mockFetch = createMockFetch({
-        [`GET https://api.shipstation.com/v2/carriers/${carrierId}`]:
+        [`GET https://ssapi.shipstation.com/carriers/getcarrier?carrierCode=${carrierCode}`]:
           mockCarrierResponse,
       })
       global.fetch = mockFetch as any
 
-      const carrier = await client.getCarrier(carrierId)
+      const carrier = await client.getCarrier(carrierCode)
 
       expect(carrier).toMatchObject({
-        carrier_id: 'se-123456',
-        carrier_code: 'fedex',
-        carrier_name: 'FedEx',
+        name: 'FedEx',
+        code: 'fedex',
       })
-      expect(carrier.services).toHaveLength(1)
-      expect(carrier.packages).toHaveLength(1)
-      expect(carrier.options).toHaveLength(1)
       expect(mockFetch).toHaveBeenCalledOnce()
     })
 
     it('should throw error if carrier not found', async () => {
-      const carrierId = 'invalid_id'
+      const carrierCode = 'invalid_carrier'
       const mockFetch = createMockFetch({
-        [`GET https://api.shipstation.com/v2/carriers/${carrierId}`]: {
+        [`GET https://ssapi.shipstation.com/carriers/getcarrier?carrierCode=${carrierCode}`]: {
           error: true,
           status: 404,
-          message: 'Carrier not found',
+          Message: 'Carrier not found',
         },
       })
       global.fetch = mockFetch as any
 
-      await expect(client.getCarrier(carrierId)).rejects.toThrow(ShipStationError)
+      await expect(client.getCarrier(carrierCode)).rejects.toThrow(ShipStationError)
     })
   })
 
   describe('listCarrierServices', () => {
     it('should successfully list carrier services', async () => {
-      const carrierId = 'se-123456'
-      const mockServicesResponse = {
-        services: [
-          {
-            service_code: 'fedex_ground',
-            name: 'FedEx Ground',
-            domestic: true,
-            international: false,
-            description: 'Ground delivery service',
-          },
-          {
-            service_code: 'fedex_2day',
-            name: 'FedEx 2Day',
-            domestic: true,
-            international: false,
-            description: '2-day delivery service',
-          },
-        ],
-      }
-
+      const carrierCode = 'fedex'
       const mockFetch = createMockFetch({
-        [`GET https://api.shipstation.com/v2/carriers/${carrierId}/services`]:
-          mockServicesResponse,
+        [`GET https://ssapi.shipstation.com/carriers/listservices?carrierCode=${carrierCode}`]:
+          mockShipStationV1ServicesResponse,
       })
       global.fetch = mockFetch as any
 
-      const services = await client.listCarrierServices(carrierId)
+      const services = await client.listCarrierServices(carrierCode)
 
       expect(services).toHaveLength(2)
       expect(services[0]).toMatchObject({
-        service_code: 'fedex_ground',
+        carrierCode: 'fedex',
+        code: 'fedex_ground',
         name: 'FedEx Ground',
         domestic: true,
         international: false,
-      })
-      expect(services[1]).toMatchObject({
-        service_code: 'fedex_2day',
-        name: 'FedEx 2Day',
       })
       expect(mockFetch).toHaveBeenCalledOnce()
     })
 
     it('should return empty array when no services', async () => {
-      const carrierId = 'se-123456'
+      const carrierCode = 'test_carrier'
       const mockFetch = createMockFetch({
-        [`GET https://api.shipstation.com/v2/carriers/${carrierId}/services`]: {
-          services: [],
-        },
+        [`GET https://ssapi.shipstation.com/carriers/listservices?carrierCode=${carrierCode}`]: [],
       })
       global.fetch = mockFetch as any
 
-      const services = await client.listCarrierServices(carrierId)
+      const services = await client.listCarrierServices(carrierCode)
 
       expect(services).toEqual([])
       expect(mockFetch).toHaveBeenCalledOnce()
     })
 
     it('should throw error on API failure', async () => {
-      const carrierId = 'se-123456'
+      const carrierCode = 'fedex'
       const mockFetch = createMockFetch({
-        [`GET https://api.shipstation.com/v2/carriers/${carrierId}/services`]: {
+        [`GET https://ssapi.shipstation.com/carriers/listservices?carrierCode=${carrierCode}`]: {
           error: true,
           status: 400,
-          message: 'Bad Request',
+          Message: 'Bad Request',
         },
       })
       global.fetch = mockFetch as any
 
-      await expect(client.listCarrierServices(carrierId)).rejects.toThrow(ShipStationError)
+      await expect(client.listCarrierServices(carrierCode)).rejects.toThrow(ShipStationError)
+    })
+  })
+
+  describe('listCarrierPackages', () => {
+    it('should successfully list carrier packages', async () => {
+      const carrierCode = 'fedex'
+      const mockPackagesResponse = [
+        { carrierCode: 'fedex', code: 'package', name: 'Package', domestic: true, international: true },
+        { carrierCode: 'fedex', code: 'fedex_envelope', name: 'FedEx Envelope', domestic: true, international: false },
+      ]
+
+      const mockFetch = createMockFetch({
+        [`GET https://ssapi.shipstation.com/carriers/listpackages?carrierCode=${carrierCode}`]:
+          mockPackagesResponse,
+      })
+      global.fetch = mockFetch as any
+
+      const packages = await client.listCarrierPackages(carrierCode)
+
+      expect(packages).toHaveLength(2)
+      expect(packages[0]).toMatchObject({
+        carrierCode: 'fedex',
+        code: 'package',
+        name: 'Package',
+      })
+      expect(mockFetch).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('listWarehouses', () => {
+    it('should successfully list warehouses', async () => {
+      const mockWarehousesResponse = [
+        {
+          warehouseId: 123,
+          warehouseName: 'Main Warehouse',
+          originAddress: { street1: '123 Main St', city: 'Vancouver', state: 'BC', postalCode: 'V6B1A1', country: 'CA' },
+          createDate: '2025-01-01T00:00:00',
+          isDefault: true,
+        },
+      ]
+
+      const mockFetch = createMockFetch({
+        'GET https://ssapi.shipstation.com/warehouses': mockWarehousesResponse,
+      })
+      global.fetch = mockFetch as any
+
+      const warehouses = await client.listWarehouses()
+
+      expect(warehouses).toHaveLength(1)
+      expect(warehouses[0]).toMatchObject({
+        warehouseId: 123,
+        warehouseName: 'Main Warehouse',
+      })
+      expect(mockFetch).toHaveBeenCalledOnce()
     })
   })
 })

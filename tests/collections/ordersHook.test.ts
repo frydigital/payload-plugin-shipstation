@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getOrdersOverride } from '../../src/collections/ordersOverride'
-import { mockOrder, mockPickupOrder, mockShipStationSuccessResponse } from '../mockData'
+import { mockOrder, mockPickupOrder, mockShipStationV1OrderResponse } from '../mockData'
 import { createMockPayload, createMockShipStationClient } from '../testUtils'
 
-describe('orders collection afterChange hook', () => {
+describe('orders collection afterChange hook (V1 API)', () => {
   let mockPayload: any
   let mockClient: any
   let hook: any
@@ -14,7 +14,7 @@ describe('orders collection afterChange hook', () => {
     mockClient = createMockShipStationClient()
     mockPayload.shipStationClient = mockClient
     mockPayload.config.shipStationPlugin = {
-      warehouseId: 'se-warehouse-123',
+      warehouseId: '123',
       enabledFeatures: {
         autoCreateShipments: true,
       },
@@ -34,7 +34,8 @@ describe('orders collection afterChange hook', () => {
 
       mockPayload.findByID.mockResolvedValue(doc)
       mockPayload.update.mockResolvedValue(doc)
-      mockClient.createShipment.mockResolvedValue(mockShipStationSuccessResponse)
+      // V1 API uses createOrder
+      mockClient.createOrder.mockResolvedValue(mockShipStationV1OrderResponse)
 
       await hook({
         req: { payload: mockPayload },
@@ -43,7 +44,7 @@ describe('orders collection afterChange hook', () => {
         operation: 'update',
       })
 
-      expect(mockClient.createShipment).toHaveBeenCalledOnce()
+      expect(mockClient.createOrder).toHaveBeenCalledOnce()
       expect(mockPayload.logger.info).toHaveBeenCalledWith(
         expect.stringContaining('Auto-creating shipment')
       )
@@ -59,7 +60,7 @@ describe('orders collection afterChange hook', () => {
         operation: 'create',
       })
 
-      expect(mockClient.createShipment).not.toHaveBeenCalled()
+      expect(mockClient.createOrder).not.toHaveBeenCalled()
     })
 
     it('should not trigger if status unchanged', async () => {
@@ -73,7 +74,7 @@ describe('orders collection afterChange hook', () => {
         operation: 'update',
       })
 
-      expect(mockClient.createShipment).not.toHaveBeenCalled()
+      expect(mockClient.createOrder).not.toHaveBeenCalled()
     })
 
     it('should not trigger if status changes to non-processing', async () => {
@@ -87,7 +88,7 @@ describe('orders collection afterChange hook', () => {
         operation: 'update',
       })
 
-      expect(mockClient.createShipment).not.toHaveBeenCalled()
+      expect(mockClient.createOrder).not.toHaveBeenCalled()
     })
 
     it('should not trigger if autoCreateShipments disabled', async () => {
@@ -102,7 +103,7 @@ describe('orders collection afterChange hook', () => {
         operation: 'update',
       })
 
-      expect(mockClient.createShipment).not.toHaveBeenCalled()
+      expect(mockClient.createOrder).not.toHaveBeenCalled()
     })
   })
 
@@ -118,19 +119,19 @@ describe('orders collection afterChange hook', () => {
         operation: 'update',
       })
 
-      expect(mockClient.createShipment).not.toHaveBeenCalled()
+      expect(mockClient.createOrder).not.toHaveBeenCalled()
       expect(mockPayload.logger.info).toHaveBeenCalledWith(
         expect.stringContaining('pickup order, skipping')
       )
     })
 
-    it('should only create shipments for shipping orders', async () => {
+    it('should only create orders for shipping orders', async () => {
       const shippingOrder = { ...mockOrder, shippingMethod: 'shipping', status: 'processing' }
       const previousDoc = { ...shippingOrder, status: 'pending' }
 
       mockPayload.findByID.mockResolvedValue(shippingOrder)
       mockPayload.update.mockResolvedValue(shippingOrder)
-      mockClient.createShipment.mockResolvedValue(mockShipStationSuccessResponse)
+      mockClient.createOrder.mockResolvedValue(mockShipStationV1OrderResponse)
 
       await hook({
         req: { payload: mockPayload },
@@ -139,7 +140,7 @@ describe('orders collection afterChange hook', () => {
         operation: 'update',
       })
 
-      expect(mockClient.createShipment).toHaveBeenCalledOnce()
+      expect(mockClient.createOrder).toHaveBeenCalledOnce()
     })
   })
 
@@ -161,21 +162,21 @@ describe('orders collection afterChange hook', () => {
         operation: 'update',
       })
 
-      expect(mockClient.createShipment).not.toHaveBeenCalled()
+      expect(mockClient.createOrder).not.toHaveBeenCalled()
       expect(mockPayload.logger.info).toHaveBeenCalledWith(
         expect.stringContaining('already has shipment, skipping')
       )
     })
   })
 
-  describe('successful shipment creation', () => {
-    it('should create shipment and log success', async () => {
+  describe('successful order creation', () => {
+    it('should create order and log success', async () => {
       const previousDoc = { ...mockOrder, status: 'pending' }
       const doc = { ...mockOrder, id: 'order_123', status: 'processing' }
 
       mockPayload.findByID.mockResolvedValue(doc)
       mockPayload.update.mockResolvedValue(doc)
-      mockClient.createShipment.mockResolvedValue(mockShipStationSuccessResponse)
+      mockClient.createOrder.mockResolvedValue(mockShipStationV1OrderResponse)
 
       await hook({
         req: { payload: mockPayload },
@@ -195,7 +196,7 @@ describe('orders collection afterChange hook', () => {
 
       mockPayload.findByID.mockResolvedValue(doc)
       mockPayload.update.mockResolvedValue(doc)
-      mockClient.createShipment.mockResolvedValue(mockShipStationSuccessResponse)
+      mockClient.createOrder.mockResolvedValue(mockShipStationV1OrderResponse)
 
       await hook({
         req: { payload: mockPayload },
@@ -204,7 +205,7 @@ describe('orders collection afterChange hook', () => {
         operation: 'update',
       })
 
-      expect(mockClient.createShipment).toHaveBeenCalled()
+      expect(mockClient.createOrder).toHaveBeenCalled()
     })
   })
 
@@ -226,7 +227,7 @@ describe('orders collection afterChange hook', () => {
       // createShipmentForOrder returns { success: false } and doesn't throw
       // So the hook's catch block is never hit, it just logs the utility's error
       expect(mockPayload.logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Shipment creation failed')
+        expect.stringContaining('Order creation failed')
       )
       // Manual review status is set by the endpoint, not the hook
       expect(mockPayload.update).not.toHaveBeenCalled()
@@ -254,8 +255,8 @@ describe('orders collection afterChange hook', () => {
       const doc = { ...mockOrder, id: 'order_123', status: 'processing' }
 
       mockPayload.findByID.mockResolvedValue(doc)
-      mockClient.createShipment.mockResolvedValue(mockShipStationSuccessResponse)
-      // First update for the successful shipment will work
+      mockClient.createOrder.mockResolvedValue(mockShipStationV1OrderResponse)
+      // First update for the successful order will work
       mockPayload.update.mockResolvedValueOnce(doc)
       // Second call tries to mark as manual_review, but this one fails
       mockPayload.update.mockRejectedValueOnce(new Error('Update failed'))
@@ -267,7 +268,7 @@ describe('orders collection afterChange hook', () => {
         operation: 'update',
       })
 
-      // Should not have errors since shipment creation succeeded
+      // Should not have errors since order creation succeeded
       expect(mockPayload.logger.error).not.toHaveBeenCalled()
     })
 
@@ -288,16 +289,16 @@ describe('orders collection afterChange hook', () => {
   })
 
   describe('asynchronous behavior', () => {
-    it('should not block on shipment creation', async () => {
+    it('should not block on order creation', async () => {
       const previousDoc = { ...mockOrder, status: 'pending' }
       const doc = { ...mockOrder, status: 'processing' }
 
       mockPayload.findByID.mockResolvedValue(doc)
       mockPayload.update.mockResolvedValue(doc)
       
-      // Simulate slow shipment creation
-      mockClient.createShipment.mockImplementation(
-        () => new Promise((resolve) => setTimeout(() => resolve(mockShipStationSuccessResponse), 100))
+      // Simulate slow order creation
+      mockClient.createOrder.mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve(mockShipStationV1OrderResponse), 100))
       )
 
       const startTime = Date.now()
@@ -309,7 +310,7 @@ describe('orders collection afterChange hook', () => {
       })
       const duration = Date.now() - startTime
 
-      // Hook should complete even if shipment creation is pending
+      // Hook should complete even if order creation is pending
       expect(duration).toBeGreaterThanOrEqual(0)
     })
   })

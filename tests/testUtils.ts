@@ -28,20 +28,30 @@ export function createMockPayload(overrides: Partial<Payload> = {}): Payload {
 }
 
 /**
- * Create a mock ShipStation client
+ * Create a mock ShipStation V1 API client
  */
 export function createMockShipStationClient(
   overrides: Partial<ShipStationClient> = {}
 ): ShipStationClient {
   return {
-    createShipment: vi.fn(),
-    getShipment: vi.fn(),
-    cancelShipment: vi.fn(),
+    // V1 API methods
+    createOrder: vi.fn(),
+    getOrder: vi.fn(),
+    deleteOrder: vi.fn(),
     getRates: vi.fn(),
     validateAddress: vi.fn(),
     createLabel: vi.fn(),
     voidLabel: vi.fn(),
+    getShipment: vi.fn(),
     getTracking: vi.fn(),
+    listCarriers: vi.fn(),
+    getCarrier: vi.fn(),
+    listCarrierServices: vi.fn(),
+    listCarrierPackages: vi.fn(),
+    listWarehouses: vi.fn(),
+    getWarehouse: vi.fn(),
+    getApiKey: vi.fn().mockReturnValue('TEST_API_KEY'),
+    getWarehouseId: vi.fn().mockReturnValue('123'),
     ...overrides,
   } as unknown as ShipStationClient
 }
@@ -80,7 +90,8 @@ export function mockEnv(vars: Record<string, string>) {
 }
 
 /**
- * Mock fetch for ShipStation API calls
+ * Mock fetch for ShipStation V1 API calls
+ * V1 API uses Basic Auth and different URL structure
  */
 export function createMockFetch(responses: Record<string, any> = {}) {
   return vi.fn(async (url: string, options?: RequestInit) => {
