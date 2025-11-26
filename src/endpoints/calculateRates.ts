@@ -132,6 +132,7 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
     // Get carrier codes from settings (V1 API uses carrierCode, not carrierId)
     const preferredCarriers = shippingSettings?.preferredCarriers || []
     // Support both carrierCode (V1) and carrierId (legacy V2) for backward compatibility
+    // TODO: Remove carrierId fallback in next major version when V2 support is dropped
     const carrierCodes = preferredCarriers
       .filter((c: any) => c.enabled !== false)
       .map((c: any) => c.carrierCode || c.carrierId)

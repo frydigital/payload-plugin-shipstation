@@ -1,5 +1,5 @@
-import { format } from 'date-fns';
-import type { Payload } from 'payload';
+import { format } from 'date-fns'
+import type { Payload } from 'payload'
 import type { 
   OrderForShipment, 
   OrderLineItem, 
@@ -8,12 +8,18 @@ import type {
   ShipStationPluginOptions,
   ShipStationV1OrderItem,
   ShipStationV1Weight,
-} from '../types';
+} from '../types'
 
 // Minimal client shape used here - V1 API uses createOrder
 interface ShipStationClient {
   createOrder: (request: ShipStationCreateOrderRequest) => Promise<ShipStationCreateOrderResponse>
 }
+
+// Weight conversion constants
+const KG_TO_GRAMS = 1000
+const KG_TO_LB = 2.20462
+const G_TO_LB = 0.00220462
+const OZ_TO_LB = 1 / 16
 
 /**
  * Convert weight to V1 format (pounds as default, with grams as option)
@@ -23,8 +29,8 @@ function convertToV1Weight(weight: { value: number; unit: string }): ShipStation
   switch (unit) {
     case 'kilogram':
     case 'kg':
-      // Convert kg to grams
-      return { value: weight.value * 1000, units: 'grams' }
+      // Convert kg to grams for V1 API
+      return { value: weight.value * KG_TO_GRAMS, units: 'grams' }
     case 'gram':
     case 'g':
       return { value: weight.value, units: 'grams' }
@@ -63,20 +69,20 @@ function calculateTotalWeightPounds(items: OrderLineItem[]): number {
     const v = w.value * quantity
     const unit = w.unit.toLowerCase()
     
-    // Convert all to pounds
+    // Convert all to pounds using named constants
     switch (unit) {
       case 'kilogram':
       case 'kg':
-        return sum + v * 2.20462 // kg to lb
+        return sum + v * KG_TO_LB
       case 'gram':
       case 'g':
-        return sum + v * 0.00220462 // g to lb
+        return sum + v * G_TO_LB
       case 'pound':
       case 'lb':
         return sum + v
       case 'ounce':
       case 'oz':
-        return sum + v / 16 // oz to lb
+        return sum + v * OZ_TO_LB
       default:
         return sum
     }

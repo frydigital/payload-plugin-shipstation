@@ -728,10 +728,14 @@ export interface ShipStationV1Warehouse {
 }
 
 // ============================================================================
-// Legacy V2 Types (kept for reference, deprecated)
+// Legacy V2 Types (kept for backward compatibility)
+// These types are deprecated since v0.3.0 and will be removed in v1.0.0
 // ============================================================================
 
-/** @deprecated Use ShipStationV1Address instead */
+/** 
+ * @deprecated since v0.3.0, will be removed in v1.0.0
+ * Use ShipStationV1Address instead
+ */
 export interface ShipStationAddress {
   name?: string
   company_name?: string
@@ -746,7 +750,10 @@ export interface ShipStationAddress {
   address_residential_indicator?: 'yes' | 'no' | 'unknown'
 }
 
-/** @deprecated Use ShipStationV1Weight instead */
+/** 
+ * @deprecated since v0.3.0, will be removed in v1.0.0
+ * Use ShipStationV1Weight instead 
+ */
 export interface ShipStationPackage {
   weight: {
     value: number
@@ -760,7 +767,10 @@ export interface ShipStationPackage {
   }
 }
 
-/** @deprecated V2 API types - kept for backward compatibility */
+/** 
+ * @deprecated since v0.3.0, will be removed in v1.0.0
+ * V2 API types - kept for backward compatibility 
+ */
 export interface ShipStationShipment {
   shipmentId?: string
   carrierId?: string
@@ -777,7 +787,10 @@ export interface ShipStationShipment {
   validateAddress?: 'no_validation' | 'validate_only' | 'validate_and_clean'
 }
 
-/** @deprecated Use ShipStationV1AdvancedOptions instead */
+/** 
+ * @deprecated since v0.3.0, will be removed in v1.0.0
+ * Use ShipStationV1AdvancedOptions instead 
+ */
 export interface ShipStationAdvancedOptions {
   billToAccount?: string
   billToCountryCode?: string
@@ -791,7 +804,10 @@ export interface ShipStationAdvancedOptions {
   dryIceWeight?: Weight
 }
 
-/** @deprecated V2 API type */
+/** 
+ * @deprecated since v0.3.0, will be removed in v1.0.0
+ * V2 API type 
+ */
 export interface ShipStationRateRequest {
   shipment?: ShipStationShipment
   shipmentId?: string
@@ -802,7 +818,10 @@ export interface ShipStationRateRequest {
   }
 }
 
-/** @deprecated V2 API type */
+/** 
+ * @deprecated since v0.3.0, will be removed in v1.0.0
+ * V2 API type 
+ */
 export interface ShipStationRateResponse {
   rateResponse: {
     rates: ShipStationRate[]
@@ -816,7 +835,10 @@ export interface ShipStationRateResponse {
   shipment: ShipStationShipment
 }
 
-/** @deprecated V2 API type */
+/** 
+ * @deprecated since v0.3.0, will be removed in v1.0.0
+ * V2 API type 
+ */
 export interface ShipStationCalculateRatesRequest {
   rate_options: {
     carrier_ids: string[]

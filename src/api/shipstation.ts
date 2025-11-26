@@ -88,6 +88,9 @@ export class ShipStationClient {
     return this.warehouseId
   }
 
+  // Weight conversion constant for kg to grams
+  private static readonly KG_TO_GRAMS = 1000
+
   /**
    * Convert internal weight unit to ShipStation V1 weight unit
    */
@@ -112,7 +115,7 @@ export class ShipStationClient {
    */
   private convertWeightValue(value: number, unit: WeightUnit): number {
     if (unit === 'kilogram') {
-      return value * 1000 // Convert kg to grams
+      return value * ShipStationClient.KG_TO_GRAMS
     }
     return value
   }
