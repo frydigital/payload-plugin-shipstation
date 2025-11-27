@@ -4,6 +4,7 @@ import { cartShippingEligibilityHandler } from './cartShippingEligibility'
 import { createShipmentHandler } from './createShipment'
 import {
     getCarrierHandler,
+    listCarrierPackagesHandler,
     listCarrierServicesHandler,
     listCarriersHandler
 } from './listCarriers'
@@ -13,6 +14,7 @@ import { webhooksHandler } from './webhooks'
 
 /**
  * Get all shipping endpoints
+ * Updated for ShipStation V1 API
  */
 export function getShippingEndpoints(): Endpoint[] {
   return [
@@ -51,15 +53,21 @@ export function getShippingEndpoints(): Endpoint[] {
       method: 'get',
       handler: listCarriersHandler,
     },
+    // V1 API uses carrierCode instead of carrierId
     {
-      path: '/shipping/carriers/:carrierId',
+      path: '/shipping/carriers/:carrierCode',
       method: 'get',
       handler: getCarrierHandler,
     },
     {
-      path: '/shipping/carriers/:carrierId/services',
+      path: '/shipping/carriers/:carrierCode/services',
       method: 'get',
       handler: listCarrierServicesHandler,
+    },
+    {
+      path: '/shipping/carriers/:carrierCode/packages',
+      method: 'get',
+      handler: listCarrierPackagesHandler,
     },
   ]
 }

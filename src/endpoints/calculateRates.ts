@@ -13,15 +13,15 @@ const normalizeWeightUnit = (unit: string): string => {
 export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
   const startTime = Date.now()
   try {
-    console.log('📦 [ShipStation] Calculate rates request received')
-    req.payload.logger.info('📦 [ShipStation] Calculate rates request received')
+    console.log('📦 [ShipStation V1] Calculate rates request received')
+    req.payload.logger.info('📦 [ShipStation V1] Calculate rates request received')
     const body = req.json ? await req.json() : req.body
     let { items, shipTo, cartTotal, cartId, toAddress } = body as any
 
     // Support cart-based requests
     if (cartId && toAddress) {
-      console.log(`📦 [ShipStation] Fetching cart ${cartId}...`)
-      req.payload.logger.info(`📦 [ShipStation] Fetching cart ${cartId}...`)
+      console.log(`📦 [ShipStation V1] Fetching cart ${cartId}...`)
+      req.payload.logger.info(`📦 [ShipStation V1] Fetching cart ${cartId}...`)
       const cartFetchStart = Date.now()
       try {
         const cart = await req.payload.findByID({
@@ -29,8 +29,8 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
           id: cartId,
           depth: 2,
         })
-        console.log(`📦 [ShipStation] Cart fetched in ${Date.now() - cartFetchStart}ms`)
-        req.payload.logger.info(`📦 [ShipStation] Cart fetched in ${Date.now() - cartFetchStart}ms`)
+        console.log(`📦 [ShipStation V1] Cart fetched in ${Date.now() - cartFetchStart}ms`)
+        req.payload.logger.info(`📦 [ShipStation V1] Cart fetched in ${Date.now() - cartFetchStart}ms`)
 
         if (!cart || !cart.items || cart.items.length === 0) {
           return Response.json({
@@ -39,8 +39,8 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
         }
 
         // Transform cart items to rate calculation format
-        console.log(`📦 [ShipStation] Processing ${cart.items.length} cart items...`)
-        req.payload.logger.info(`📦 [ShipStation] Processing ${cart.items.length} cart items...`)
+        console.log(`📦 [ShipStation V1] Processing ${cart.items.length} cart items...`)
+        req.payload.logger.info(`📦 [ShipStation V1] Processing ${cart.items.length} cart items...`)
         items = cart.items.map((item: any) => {
           const product = typeof item.product === 'object' ? item.product : null
           const variant = typeof item.variant === 'object' ? item.variant : null
@@ -67,11 +67,11 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
           postalCode: toAddress.postalCode,
           country: toAddress.country, // Required field - no default
         }
-        console.log(`📦 [ShipStation] Cart total: $${cartTotal}, Ship to: ${shipTo.postalCode}`)
-        req.payload.logger.info(`📦 [ShipStation] Cart total: $${cartTotal}, Ship to: ${shipTo.postalCode}`)
+        console.log(`📦 [ShipStation V1] Cart total: $${cartTotal}, Ship to: ${shipTo.postalCode}`)
+        req.payload.logger.info(`📦 [ShipStation V1] Cart total: $${cartTotal}, Ship to: ${shipTo.postalCode}`)
       } catch (error) {
-        console.log(`❌ [ShipStation] Failed to fetch cart: ${error}`)
-        req.payload.logger.error(`❌ [ShipStation] Failed to fetch cart: ${error}`)
+        console.log(`❌ [ShipStation V1] Failed to fetch cart: ${error}`)
+        req.payload.logger.error(`❌ [ShipStation V1] Failed to fetch cart: ${error}`)
         return Response.json({
           error: 'Failed to fetch cart data',
         }, { status: 500 })
@@ -98,22 +98,22 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       }, { status: 500 })
     }
 
-    console.log('📦 [ShipStation] Fetching shipping settings...')
-    req.payload.logger.info('📦 [ShipStation] Fetching shipping settings...')
+    console.log('📦 [ShipStation V1] Fetching shipping settings...')
+    req.payload.logger.info('📦 [ShipStation V1] Fetching shipping settings...')
     const shippingSettings = await req.payload.findGlobal({
       slug: 'shipping-settings',
     })
-    console.log('📦 [ShipStation] Shipping settings fetched')
+    console.log('📦 [ShipStation V1] Shipping settings fetched')
 
     // Check if cart qualifies for free shipping
     const freeShippingThreshold = shippingSettings?.freeShippingThreshold || 0
     const isFreeShipping = freeShippingThreshold > 0 && cartTotal >= freeShippingThreshold
 
     if (isFreeShipping) {
-      console.log(`✅ [ShipStation] Free shipping qualified! Total: $${cartTotal} >= $${freeShippingThreshold}`)
-      req.payload.logger.info(`✅ [ShipStation] Free shipping qualified! Total: $${cartTotal} >= $${freeShippingThreshold}`)
+      console.log(`✅ [ShipStation V1] Free shipping qualified! Total: $${cartTotal} >= $${freeShippingThreshold}`)
+      req.payload.logger.info(`✅ [ShipStation V1] Free shipping qualified! Total: $${cartTotal} >= $${freeShippingThreshold}`)
       const elapsed = Date.now() - startTime
-      req.payload.logger.info(`📦 [ShipStation] Request completed in ${elapsed}ms`)
+      req.payload.logger.info(`📦 [ShipStation V1] Request completed in ${elapsed}ms`)
       return Response.json({
         rates: [{
           serviceName: 'Free Shipping',
@@ -126,32 +126,35 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       })
     }
 
-    console.log('📦 [ShipStation] Calling ShipStation API for rates...')
-    req.payload.logger.info('📦 [ShipStation] Calling ShipStation API for rates...')
+    console.log('📦 [ShipStation V1] Calling ShipStation API for rates...')
+    req.payload.logger.info('📦 [ShipStation V1] Calling ShipStation API for rates...')
     
-    // Get carrier IDs from settings (REQUIRED by v2 API)
+    // Get carrier codes from settings (V1 API uses carrierCode, not carrierId)
     const preferredCarriers = shippingSettings?.preferredCarriers || []
-    const carrierIds = preferredCarriers
+    // Support both carrierCode (V1) and carrierId (legacy V2) for backward compatibility
+    // TODO: Remove carrierId fallback in next major version when V2 support is dropped
+    const carrierCodes = preferredCarriers
       .filter((c: any) => c.enabled !== false)
-      .map((c: any) => c.carrierId)
+      .map((c: any) => c.carrierCode || c.carrierId)
       .filter(Boolean)
     
-    console.log('📦 [ShipStation] Carrier IDs from settings:', carrierIds)
+    console.log('📦 [ShipStation V1] Carrier codes from settings:', carrierCodes)
     
-    if (!carrierIds || carrierIds.length === 0) {
-      console.warn('⚠️ [ShipStation] No carrier IDs configured in shipping settings - cannot fetch rates')
-      req.payload.logger.warn('⚠️ [ShipStation] No carrier IDs configured in shipping settings')
+    if (!carrierCodes || carrierCodes.length === 0) {
+      console.warn('⚠️ [ShipStation V1] No carrier codes configured in shipping settings - cannot fetch rates')
+      req.payload.logger.warn('⚠️ [ShipStation V1] No carrier codes configured in shipping settings')
       return Response.json({
         rates: [],
         freeShipping: false,
-        error: 'No carriers configured. Please add carrier IDs in shipping settings.',
+        error: 'No carriers configured. Please add carrier codes in shipping settings.',
       })
     }
     
     // Calculate total weight from all items
     const totalWeight = items.reduce((sum: number, item: any) => {
       const weight = item.weight?.value || 1
-      return sum + weight
+      const quantity = item.quantity || 1
+      return sum + (weight * quantity)
     }, 0)
     
     // Use largest dimensions from items (ShipStation will calculate based on package size)
@@ -162,31 +165,52 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       const largestVolume = largest.length * largest.width * largest.height
       return itemVolume > largestVolume ? item.dimensions : largest
     }, null)
+
+    // Get ship from address from settings if available
+    const shipFromPostalCode = shippingSettings?.defaultOriginPostalCode || ''
+    
+    // Build ship to address for V1 API
+    const shipToAddress = {
+      addressLine1: shipTo.line1 || shipTo.addressLine1 || '',
+      city: shipTo.city || '',
+      state: shipTo.province || shipTo.state || '',
+      postalCode: shipTo.postalCode || '',
+      country: shipTo.country || '',
+    }
+
+    // Build ship from address for V1 API (minimal - just postal code needed for rates)
+    const shipFromAddress = {
+      addressLine1: '',
+      city: '',
+      state: '',
+      postalCode: shipFromPostalCode,
+      country: shipTo.country || 'US', // Default to same country as shipTo
+    }
     
     const getRatesParams = {
-      shipTo,
-      // shipFrom not needed - client will use warehouse_id internally
-      weight: { value: totalWeight, unit: items[0]?.weight?.unit || 'kilogram' }, // Default to kilogram if not specified
+      shipTo: shipToAddress,
+      shipFrom: shipFromAddress,
+      weight: { value: totalWeight, unit: items[0]?.weight?.unit || 'kilogram' },
       dimensions: largestDimensions,
-      carrierIds, // REQUIRED by v2 API
+      carrierCodes, // V1 API uses carrierCodes
       requiresSignature: items.some((item: any) => item.requiresSignature),
-      residential: shipTo.addressResidentialIndicator === 'yes' ? true : shipTo.addressResidentialIndicator === 'no' ? false : undefined, // Pass undefined to default to 'unknown'
+      residential: shipTo.addressResidentialIndicator === 'yes' ? true : shipTo.addressResidentialIndicator === 'no' ? false : undefined,
     }
-    console.log('🔍 [ShipStation] getRates params:', JSON.stringify(getRatesParams, null, 2))
-    console.log('🔍 [ShipStation] Client type:', typeof client, client.constructor.name)
-    console.log('🔍 [ShipStation] getRates function:', typeof client.getRates)
+    console.log('🔍 [ShipStation V1] getRates params:', JSON.stringify(getRatesParams, null, 2))
+    console.log('🔍 [ShipStation V1] Client type:', typeof client, client.constructor.name)
+    console.log('🔍 [ShipStation V1] getRates function:', typeof client.getRates)
     
     const apiStart = Date.now()
     const rates = await client.getRates(getRatesParams)
     const apiElapsed = Date.now() - apiStart
     
-    console.log(`📦 [ShipStation] API responded in ${apiElapsed}ms with ${rates.length} rates`)
-    console.log('📦 [ShipStation] Rates received:', JSON.stringify(rates, null, 2))
-    req.payload.logger.info(`📦 [ShipStation] API responded in ${apiElapsed}ms with ${rates.length} rates`)
+    console.log(`📦 [ShipStation V1] API responded in ${apiElapsed}ms with ${rates.length} rates`)
+    console.log('📦 [ShipStation V1] Rates received:', JSON.stringify(rates, null, 2))
+    req.payload.logger.info(`📦 [ShipStation V1] API responded in ${apiElapsed}ms with ${rates.length} rates`)
 
     const elapsed = Date.now() - startTime
-    console.log(`✅ [ShipStation] Request completed in ${elapsed}ms`)
-    req.payload.logger.info(`✅ [ShipStation] Request completed in ${elapsed}ms`)
+    console.log(`✅ [ShipStation V1] Request completed in ${elapsed}ms`)
+    req.payload.logger.info(`✅ [ShipStation V1] Request completed in ${elapsed}ms`)
     return Response.json({
       rates,
       freeShipping: false,
@@ -194,9 +218,9 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
   } catch (err) {
     const error = err as Error
     const elapsed = Date.now() - startTime
-    console.log(`❌ [ShipStation] Rate calculation error after ${elapsed}ms: ${error.message}`)
-    console.log(`❌ [ShipStation] Error stack: ${error.stack}`)
-    req.payload.logger.error(`❌ [ShipStation] Rate calculation error after ${elapsed}ms: ${error.message}`)
+    console.log(`❌ [ShipStation V1] Rate calculation error after ${elapsed}ms: ${error.message}`)
+    console.log(`❌ [ShipStation V1] Error stack: ${error.stack}`)
+    req.payload.logger.error(`❌ [ShipStation V1] Rate calculation error after ${elapsed}ms: ${error.message}`)
     return Response.json({
       error: error.message || 'Failed to calculate rates',
     }, { status: 500 })

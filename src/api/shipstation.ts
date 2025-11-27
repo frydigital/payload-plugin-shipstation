@@ -1,17 +1,25 @@
 import type {
   Dimensions,
-  ShipStationAddress,
-  ShipStationCalculateRatesRequest,
-  ShipStationCalculateRatesResponse,
   ShipStationCarrier,
-  ShipStationCreateShipmentRequest,
-  ShipStationCreateShipmentResponse,
+  ShipStationCreateOrderRequest,
+  ShipStationCreateOrderResponse,
   ShipStationError as ShipStationErrorType,
-  ShipStationGetShipmentResponse,
-  ShipStationPackage,
   ShipStationRate,
+  ShipStationV1Address,
+  ShipStationV1CreateLabelRequest,
+  ShipStationV1CreateLabelResponse,
+  ShipStationV1Dimensions,
+  ShipStationV1GetRatesRequest,
+  ShipStationV1RateResponse,
+  ShipStationV1Service,
+  ShipStationV1Shipment,
+  ShipStationV1ValidateAddressRequest,
+  ShipStationV1ValidateAddressResponse,
+  ShipStationV1Warehouse,
+  ShipStationV1Weight,
   ShippingAddress,
-  Weight
+  Weight,
+  WeightUnit,
 } from '../types'
 
 export class ShipStationError extends Error implements ShipStationErrorType {
@@ -30,14 +38,24 @@ export class ShipStationError extends Error implements ShipStationErrorType {
 
 interface ShipStationClientConfig {
   apiKey: string
+  apiSecret?: string
   warehouseId: string
   apiUrl?: string
   maxRetries?: number
   retryDelay?: number
 }
 
+/**
+ * ShipStation V1 API Client
+ * 
+ * Uses the V1 API (https://ssapi.shipstation.com)
+ * Documentation: https://www.shipstation.com/docs/api/
+ * 
+ * Authentication: Basic Auth with API Key:Secret
+ */
 export class ShipStationClient {
   private apiKey: string
+  private apiSecret: string
   private warehouseId: string
   private baseUrl: string
   private maxRetries: number
@@ -45,8 +63,19 @@ export class ShipStationClient {
 
   constructor(config: ShipStationClientConfig) {
     this.apiKey = config.apiKey
+    // V1 API uses API Key:Secret format - if only apiKey provided, use it as both
+    // The apiKey format can be "key:secret" or just "key" (in which case apiSecret should be provided separately)
+    if (config.apiKey.includes(':')) {
+      const [key, secret] = config.apiKey.split(':')
+      this.apiKey = key
+      this.apiSecret = secret
+    } else {
+      this.apiKey = config.apiKey
+      this.apiSecret = config.apiSecret || config.apiKey
+    }
     this.warehouseId = config.warehouseId
-    this.baseUrl = config.apiUrl || process.env.SHIPSTATION_API_URL || 'https://api.shipstation.com'
+    // V1 API base URL
+    this.baseUrl = config.apiUrl || process.env.SHIPSTATION_API_URL || 'https://ssapi.shipstation.com'
     this.maxRetries = config.maxRetries || 3
     this.retryDelay = config.retryDelay || 1000
   }
@@ -59,205 +88,321 @@ export class ShipStationClient {
     return this.warehouseId
   }
 
+  // Weight conversion constant for kg to grams
+  private static readonly KG_TO_GRAMS = 1000
 
+  /**
+   * Convert internal weight unit to ShipStation V1 weight unit
+   */
+  private toV1WeightUnit(unit: WeightUnit): 'pounds' | 'ounces' | 'grams' {
+    switch (unit) {
+      case 'pound':
+        return 'pounds'
+      case 'ounce':
+        return 'ounces'
+      case 'gram':
+        return 'grams'
+      case 'kilogram':
+        // Convert kg to grams for V1 API
+        return 'grams'
+      default:
+        return 'pounds'
+    }
+  }
+
+  /**
+   * Convert weight value if needed (for kilogram -> grams conversion)
+   */
+  private convertWeightValue(value: number, unit: WeightUnit): number {
+    if (unit === 'kilogram') {
+      return value * ShipStationClient.KG_TO_GRAMS
+    }
+    return value
+  }
+
+  /**
+   * Get shipping rates from ShipStation V1 API
+   * https://www.shipstation.com/docs/api/shipments/get-rates/
+   * 
+   * Note: V1 API requires a carrier code for each rate request (unlike V2 which accepted multiple carrier_ids)
+   * If carrierCodes array is provided, will make multiple requests and combine results
+   */
   async getRates(params: {
     shipTo: ShippingAddress
     shipFrom?: ShippingAddress
     weight: Weight
     dimensions?: Dimensions
-    carrierIds?: string[] // REQUIRED by v2 API - must provide at least one carrier ID
+    carrierCodes?: string[]
     serviceCode?: string
     requiresSignature?: boolean
     residential?: boolean
   }): Promise<ShipStationRate[]> {
-    console.log('🚀 [ShipStation] getRates called with params:', JSON.stringify(params, null, 2))
-    const url = `${this.baseUrl}/v2/rates`
-    console.log('🚀 [ShipStation] Base URL:', this.baseUrl)
-    console.log('🚀 [ShipStation] Full URL:', url)
+    console.log('🚀 [ShipStation V1] getRates called with params:', JSON.stringify(params, null, 2))
     
-    // Build rate_options - carrier_ids is REQUIRED by v2 API spec
-    const rateOptions: ShipStationCalculateRatesRequest['rate_options'] = {
-      carrier_ids: params.carrierIds || [], // Will be populated by endpoint from settings
+    const carrierCodes = params.carrierCodes || []
+    if (carrierCodes.length === 0) {
+      console.warn('⚠️ [ShipStation V1] No carrier codes provided - cannot fetch rates')
+      return []
     }
-    
-    if (params.serviceCode) {
-      rateOptions.service_codes = [params.serviceCode]
+
+    // V1 API requires fromPostalCode - get it from shipFrom or use warehouse
+    const fromPostalCode = params.shipFrom?.postalCode || ''
+    if (!fromPostalCode) {
+      console.warn('⚠️ [ShipStation V1] No fromPostalCode provided - using default')
     }
-    
-    // Build package object without undefined fields (additionalProperties: false)
-    const packageObj: ShipStationPackage = {
-      weight: {
-        value: params.weight.value,
-        unit: params.weight.unit,
-      },
+
+    // Convert weight to V1 format
+    const weight: ShipStationV1Weight = {
+      value: this.convertWeightValue(params.weight.value, params.weight.unit),
+      units: this.toV1WeightUnit(params.weight.unit),
     }
-    
-    // Only add dimensions if provided (avoid undefined)
+
+    // Convert dimensions to V1 format if provided
+    let dimensions: ShipStationV1Dimensions | undefined
     if (params.dimensions) {
-      packageObj.dimensions = {
+      dimensions = {
         length: params.dimensions.length,
         width: params.dimensions.width,
         height: params.dimensions.height,
-        unit: params.dimensions.unit,
+        units: params.dimensions.unit === 'centimeter' ? 'centimeters' : 'inches',
       }
     }
-    
-    const requestBody: ShipStationCalculateRatesRequest = {
-      rate_options: rateOptions,
-      shipment: {
-        validate_address: 'validate_and_clean',
-        ship_to: {
-          name: params.shipTo.name || 'Recipient',
-          address_line1: params.shipTo.addressLine1,
-          address_line2: params.shipTo.addressLine2,
-          city_locality: params.shipTo.city,
-          state_province: params.shipTo.state,
-          postal_code: params.shipTo.postalCode,
-          country_code: params.shipTo.country,
-          address_residential_indicator: params.residential === true ? 'yes' : params.residential === false ? 'no' : 'unknown',
-        },
-        packages: [packageObj],
-      },
-    }
-    
-    // Add ship_from or warehouse_id at shipment level based on API spec
-    if (params.shipFrom) {
-      requestBody.shipment.ship_from = {
-        name: params.shipFrom.name || 'Sender',
-        address_line1: params.shipFrom.addressLine1,
-        address_line2: params.shipFrom.addressLine2,
-        city_locality: params.shipFrom.city,
-        state_province: params.shipFrom.state,
-        postal_code: params.shipFrom.postalCode,
-        country_code: params.shipFrom.country,
+
+    // Collect rates from all carriers
+    const allRates: ShipStationRate[] = []
+
+    for (const carrierCode of carrierCodes) {
+      try {
+        const requestBody: ShipStationV1GetRatesRequest = {
+          carrierCode,
+          fromPostalCode: fromPostalCode || '00000', // Fallback if not provided
+          toState: params.shipTo.state,
+          toCountry: params.shipTo.country,
+          toPostalCode: params.shipTo.postalCode,
+          toCity: params.shipTo.city,
+          weight,
+          dimensions,
+          confirmation: params.requiresSignature ? 'signature' : 'none',
+          residential: params.residential,
+        }
+
+        if (params.serviceCode) {
+          requestBody.serviceCode = params.serviceCode
+        }
+
+        const url = `${this.baseUrl}/shipments/getrates`
+        console.log(`📤 [ShipStation V1] POST ${url} for carrier ${carrierCode}`)
+        console.log('📤 [ShipStation V1] Request Body:', JSON.stringify(requestBody, null, 2))
+
+        const response = await this.makeRequest<ShipStationV1RateResponse[]>('POST', url, requestBody)
+        console.log('📥 [ShipStation V1] Response:', JSON.stringify(response, null, 2))
+
+        // V1 API returns an array of rates directly
+        if (Array.isArray(response)) {
+          const rates = response.map((rate) => ({
+            serviceName: rate.serviceName,
+            serviceCode: rate.serviceCode,
+            carrierCode: carrierCode,
+            shippingAmount: {
+              amount: rate.shipmentCost || 0,
+              currency: 'USD', // V1 API returns USD by default
+            },
+            otherAmount: {
+              amount: rate.otherCost || 0,
+              currency: 'USD',
+            },
+          }))
+          allRates.push(...rates)
+        }
+      } catch (error) {
+        console.error(`❌ [ShipStation V1] getRates error for carrier ${carrierCode}:`, error)
+        // Continue with other carriers even if one fails
       }
-    } else {
-      requestBody.shipment.warehouse_id = this.warehouseId
     }
-    
-    try {
-      console.log('📤 [ShipStation] POST', url)
-      console.log('📤 [ShipStation] Request Body:', JSON.stringify(requestBody, null, 2))
-      console.log('📤 [ShipStation] Auth:', `API-Key ${this.apiKey.substring(0, 20)}...`)
-      
-      const response = await this.makeRequest<ShipStationCalculateRatesResponse>('POST', url, requestBody)
-      
-      console.log('📥 [ShipStation] Response:', JSON.stringify(response, null, 2))
-      
-      // ShipStation v2 API returns rate_response with rates array
-      if (response.rate_response?.rates) {
-        return response.rate_response.rates.map((rate) => ({
-          serviceName: rate.service_name || rate.service_type || rate.service_code,
-          serviceCode: rate.service_code,
-          carrierCode: rate.carrier_code || rate.carrier_id,
-          carrierId: rate.carrier_id,
-          shippingAmount: {
-            amount: rate.shipping_amount?.amount || 0,
-            currency: rate.shipping_amount?.currency || 'CAD',
-          },
-          otherAmount: {
-            amount: rate.other_amount?.amount || 0,
-            currency: rate.other_amount?.currency || 'CAD',
-          },
-          deliveryDays: rate.delivery_days,
-          carrierDeliveryDays: rate.carrier_delivery_days,
-          shipDate: rate.ship_date,
-          estimatedDeliveryDate: rate.estimated_delivery_date,
-        }))
-      }
-      
-      return []
-    } catch (error) {
-      // Log error but don't throw - return empty array so fallback rates can be used
-      console.error('❌ [ShipStation] getRates error:', error)
-      if (error instanceof Error) {
-        console.error('❌ [ShipStation] Error message:', error.message)
-        console.error('❌ [ShipStation] Error stack:', error.stack)
-      }
-      return []
-    }
+
+    return allRates
   }
 
   /**
-   * @deprecated ShipStation v2 API does not have a dedicated address validation endpoint.
-   * Address validation is done inline when creating rates/shipments using the validate_address parameter.
-   * This method is kept for backwards compatibility but always returns valid=false.
+   * Validate an address using ShipStation V1 API
+   * https://www.shipstation.com/docs/api/addresses/validate-an-address/
    */
-  async validateAddress(_address: {
+  async validateAddress(address: {
+    name?: string
+    company?: string
     street1: string
     street2?: string
     city: string
     state: string
     postalCode: string
     country: string
+    phone?: string
+    residential?: boolean
   }): Promise<{
     isValid: boolean
-    normalizedAddress?: ShipStationAddress
+    normalizedAddress?: ShipStationV1Address
     warnings?: string[]
     errors?: string[]
   }> {
-    // ShipStation v2 doesn't have /v2/addresses/validate endpoint
-    // Address validation happens inline with rate/shipment creation via validate_address parameter
-    console.warn('[ShipStation] validateAddress is deprecated - use validate_address parameter in rate/shipment calls')
+    const url = `${this.baseUrl}/addresses/validate`
     
-    return {
-      isValid: false,
-      errors: ['Address validation must be done inline with rate/shipment creation in ShipStation v2 API'],
+    const requestBody: ShipStationV1ValidateAddressRequest = {
+      name: address.name,
+      company: address.company,
+      street1: address.street1,
+      street2: address.street2,
+      city: address.city,
+      state: address.state,
+      postalCode: address.postalCode,
+      country: address.country,
+      phone: address.phone,
+      residential: address.residential,
+    }
+
+    try {
+      console.log('📤 [ShipStation V1] POST', url)
+      console.log('📤 [ShipStation V1] Request Body:', JSON.stringify(requestBody, null, 2))
+
+      const response = await this.makeRequest<ShipStationV1ValidateAddressResponse>('POST', url, requestBody)
+      console.log('📥 [ShipStation V1] Response:', JSON.stringify(response, null, 2))
+
+      return {
+        isValid: response.valid === true,
+        normalizedAddress: response.address,
+        warnings: response.messages?.filter(m => !m.toLowerCase().includes('error')),
+        errors: response.messages?.filter(m => m.toLowerCase().includes('error')),
+      }
+    } catch (error) {
+      console.error('❌ [ShipStation V1] validateAddress error:', error)
+      return {
+        isValid: false,
+        errors: [(error as Error).message || 'Address validation failed'],
+      }
     }
   }
 
-  async createShipment(
-    request: ShipStationCreateShipmentRequest
-  ): Promise<ShipStationCreateShipmentResponse> {
-    const url = `${this.baseUrl}/v2/shipments`
-    
-    console.warn(`🔥 [ShipStation] createShipment called`)
-    console.warn(`🔥 [ShipStation] Base URL: ${this.baseUrl}`)
-    console.warn(`🔥 [ShipStation] Full URL: ${url}`)
-    console.warn(`🔥 [ShipStation] Request Body:`, JSON.stringify(request, null, 2))
-    
+  /**
+   * Create or update an order in ShipStation V1 API
+   * https://www.shipstation.com/docs/api/orders/create-update-order/
+   * 
+   * This replaces the V2 createShipment method. In V1, you create orders first,
+   * then create labels/shipments from those orders.
+   */
+  async createOrder(
+    request: ShipStationCreateOrderRequest
+  ): Promise<ShipStationCreateOrderResponse> {
+    const url = `${this.baseUrl}/orders/createorder`
+
+    console.log('🔥 [ShipStation V1] createOrder called')
+    console.log('🔥 [ShipStation V1] Base URL:', this.baseUrl)
+    console.log('🔥 [ShipStation V1] Full URL:', url)
+    console.log('🔥 [ShipStation V1] Request Body:', JSON.stringify(request, null, 2))
+
     try {
-      const response = await this.makeRequest<ShipStationCreateShipmentResponse>('POST', url, request)
+      const response = await this.makeRequest<ShipStationCreateOrderResponse>('POST', url, request)
+      console.log('📥 [ShipStation V1] createOrder Response:', JSON.stringify(response, null, 2))
       return response
     } catch (error) {
-      console.error(`❌ [ShipStation] createShipment error:`, error)
-      throw this.handleError(error, 'Failed to create shipment')
+      console.error('❌ [ShipStation V1] createOrder error:', error)
+      throw this.handleError(error, 'Failed to create order')
     }
   }
 
+  /**
+   * Get an order from ShipStation V1 API
+   * https://www.shipstation.com/docs/api/orders/get-order/
+   */
+  async getOrder(orderId: number): Promise<ShipStationCreateOrderResponse> {
+    const url = `${this.baseUrl}/orders/${orderId}`
 
-  async getShipment(shipmentId: string): Promise<ShipStationGetShipmentResponse> {
-    const url = `${this.baseUrl}/v2/shipments/${shipmentId}`
-    
     try {
-      const response = await this.makeRequest<ShipStationGetShipmentResponse>('GET', url)
+      const response = await this.makeRequest<ShipStationCreateOrderResponse>('GET', url)
       return response
+    } catch (error) {
+      throw this.handleError(error, 'Failed to get order')
+    }
+  }
+
+  /**
+   * Delete an order from ShipStation V1 API
+   * https://www.shipstation.com/docs/api/orders/delete-order/
+   */
+  async deleteOrder(orderId: number): Promise<{ success: boolean; message?: string }> {
+    const url = `${this.baseUrl}/orders/${orderId}`
+
+    try {
+      await this.makeRequest<void>('DELETE', url)
+      return { success: true }
+    } catch (error) {
+      throw this.handleError(error, 'Failed to delete order')
+    }
+  }
+
+  /**
+   * Create a shipping label for an order
+   * https://www.shipstation.com/docs/api/shipments/create-label/
+   */
+  async createLabel(params: ShipStationV1CreateLabelRequest): Promise<ShipStationV1CreateLabelResponse> {
+    const url = `${this.baseUrl}/shipments/createlabel`
+
+    console.log('🔥 [ShipStation V1] createLabel called')
+    console.log('🔥 [ShipStation V1] Request Body:', JSON.stringify(params, null, 2))
+
+    try {
+      const response = await this.makeRequest<ShipStationV1CreateLabelResponse>('POST', url, params)
+      console.log('📥 [ShipStation V1] createLabel Response:', JSON.stringify(response, null, 2))
+      return response
+    } catch (error) {
+      console.error('❌ [ShipStation V1] createLabel error:', error)
+      throw this.handleError(error, 'Failed to create label')
+    }
+  }
+
+  /**
+   * Void a shipping label
+   * https://www.shipstation.com/docs/api/shipments/void-label/
+   */
+  async voidLabel(shipmentId: number): Promise<{ approved: boolean }> {
+    const url = `${this.baseUrl}/shipments/voidlabel`
+
+    try {
+      const response = await this.makeRequest<{ approved: boolean }>('POST', url, { shipmentId })
+      return response
+    } catch (error) {
+      throw this.handleError(error, 'Failed to void label')
+    }
+  }
+
+  /**
+   * Get a shipment from ShipStation V1 API
+   * https://www.shipstation.com/docs/api/shipments/get/
+   */
+  async getShipment(shipmentId: number): Promise<ShipStationV1Shipment> {
+    // V1 API uses query params for shipment lookup
+    const url = `${this.baseUrl}/shipments?shipmentId=${shipmentId}`
+
+    try {
+      const response = await this.makeRequest<{ shipments: ShipStationV1Shipment[] }>('GET', url)
+      if (!response.shipments || response.shipments.length === 0) {
+        throw new ShipStationError('Shipment not found', 'NOT_FOUND', 404)
+      }
+      return response.shipments[0]
     } catch (error) {
       throw this.handleError(error, 'Failed to get shipment')
     }
   }
 
-  async cancelShipment(shipmentId: string): Promise<{ success: boolean; message?: string }> {
-    const url = `${this.baseUrl}/v2/shipments/${shipmentId}/cancel`
-    
-    try {
-      await this.makeRequest<void>('PUT', url)
-      return { success: true }
-    } catch (error) {
-      throw this.handleError(error, 'Failed to cancel shipment')
-    }
-  }
-
   /**
    * List all carriers connected to the account
-   * Returns carrier IDs, names, and available services
+   * https://www.shipstation.com/docs/api/carriers/list/
    */
   async listCarriers(): Promise<ShipStationCarrier[]> {
-    const url = `${this.baseUrl}/v2/carriers`
-    
+    const url = `${this.baseUrl}/carriers`
+
     try {
-      const response = await this.makeRequest<{ carriers: ShipStationCarrier[] }>('GET', url)
-      return response.carriers || []
+      const response = await this.makeRequest<ShipStationCarrier[]>('GET', url)
+      // V1 API returns array directly
+      return response || []
     } catch (error) {
       throw this.handleError(error, 'Failed to list carriers')
     }
@@ -265,60 +410,116 @@ export class ShipStationClient {
 
   /**
    * Get details for a specific carrier including available services
+   * https://www.shipstation.com/docs/api/carriers/get-carrier/
    */
-  async getCarrier(carrierId: string): Promise<{
-    services?: unknown[]
-    packages?: unknown[]
-    options?: unknown[]
-  } | null> {
-    const url = `${this.baseUrl}/v2/carriers/${carrierId}`
-    
+  async getCarrier(carrierCode: string): Promise<ShipStationCarrier | null> {
+    const url = `${this.baseUrl}/carriers/getcarrier?carrierCode=${encodeURIComponent(carrierCode)}`
+
     try {
-      const response = await this.makeRequest<{
-        services?: unknown[]
-        packages?: unknown[]
-        options?: unknown[]
-      }>('GET', url)
+      const response = await this.makeRequest<ShipStationCarrier>('GET', url)
       return response
     } catch (error) {
-      throw this.handleError(error, `Failed to get carrier ${carrierId}`)
+      throw this.handleError(error, `Failed to get carrier ${carrierCode}`)
     }
   }
 
   /**
    * List available services for a specific carrier
+   * https://www.shipstation.com/docs/api/carriers/list-services/
    */
-  async listCarrierServices(carrierId: string): Promise<unknown[]> {
-    const url = `${this.baseUrl}/v2/carriers/${carrierId}/services`
-    
+  async listCarrierServices(carrierCode: string): Promise<ShipStationV1Service[]> {
+    const url = `${this.baseUrl}/carriers/listservices?carrierCode=${encodeURIComponent(carrierCode)}`
+
     try {
-      const response = await this.makeRequest<{ services: unknown[] }>('GET', url)
-      return response.services || []
+      const response = await this.makeRequest<ShipStationV1Service[]>('GET', url)
+      // V1 API returns array directly
+      return response || []
     } catch (error) {
-      throw this.handleError(error, `Failed to list services for carrier ${carrierId}`)
+      throw this.handleError(error, `Failed to list services for carrier ${carrierCode}`)
     }
   }
 
-  async createLabel(_params: unknown): Promise<unknown> {
-    throw new Error('Not implemented')
+  /**
+   * List packages available for a specific carrier
+   * https://www.shipstation.com/docs/api/carriers/list-packages/
+   */
+  async listCarrierPackages(carrierCode: string): Promise<Array<{ carrierCode: string; code: string; name: string; domestic: boolean; international: boolean }>> {
+    const url = `${this.baseUrl}/carriers/listpackages?carrierCode=${encodeURIComponent(carrierCode)}`
+
+    try {
+      const response = await this.makeRequest<Array<{ carrierCode: string; code: string; name: string; domestic: boolean; international: boolean }>>('GET', url)
+      return response || []
+    } catch (error) {
+      throw this.handleError(error, `Failed to list packages for carrier ${carrierCode}`)
+    }
   }
 
-  async voidLabel(_labelId: string): Promise<unknown> {
-    throw new Error('Not implemented')
+  /**
+   * Get tracking information
+   * https://www.shipstation.com/docs/api/shipments/get/
+   */
+  async getTracking(trackingNumber: string, carrierCode?: string): Promise<ShipStationV1Shipment | null> {
+    let url = `${this.baseUrl}/shipments?trackingNumber=${encodeURIComponent(trackingNumber)}`
+    if (carrierCode) {
+      url += `&carrierCode=${encodeURIComponent(carrierCode)}`
+    }
+
+    try {
+      const response = await this.makeRequest<{ shipments: ShipStationV1Shipment[] }>('GET', url)
+      if (!response.shipments || response.shipments.length === 0) {
+        return null
+      }
+      return response.shipments[0]
+    } catch (error) {
+      throw this.handleError(error, 'Failed to get tracking')
+    }
   }
 
-  async getTracking(_trackingNumber: string): Promise<unknown> {
-    throw new Error('Not implemented')
+  /**
+   * List warehouses
+   * https://www.shipstation.com/docs/api/warehouses/list-warehouses/
+   */
+  async listWarehouses(): Promise<ShipStationV1Warehouse[]> {
+    const url = `${this.baseUrl}/warehouses`
+
+    try {
+      const response = await this.makeRequest<ShipStationV1Warehouse[]>('GET', url)
+      return response || []
+    } catch (error) {
+      throw this.handleError(error, 'Failed to list warehouses')
+    }
   }
 
+  /**
+   * Get a specific warehouse
+   * https://www.shipstation.com/docs/api/warehouses/get-warehouse/
+   */
+  async getWarehouse(warehouseId: number): Promise<ShipStationV1Warehouse> {
+    const url = `${this.baseUrl}/warehouses/${warehouseId}`
+
+    try {
+      const response = await this.makeRequest<ShipStationV1Warehouse>('GET', url)
+      return response
+    } catch (error) {
+      throw this.handleError(error, `Failed to get warehouse ${warehouseId}`)
+    }
+  }
+
+  /**
+   * Make HTTP request to ShipStation V1 API
+   * Uses Basic Auth with API Key:Secret
+   */
   private async makeRequest<T>(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     url: string,
     body?: unknown
   ): Promise<T> {
+    // V1 API uses Basic Auth with API Key:Secret
+    const authString = Buffer.from(`${this.apiKey}:${this.apiSecret}`).toString('base64')
+    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'API-Key': this.apiKey,
+      'Authorization': `Basic ${authString}`,
     }
 
     const options: RequestInit = {
@@ -327,56 +528,56 @@ export class ShipStationClient {
     }
 
     if (body) {
-      console.warn(`🔥 [ShipStation API] Request Body for ${method} ${url}:`)
-      console.warn(JSON.stringify(body, null, 2))
+      console.log(`🔥 [ShipStation V1 API] Request Body for ${method} ${url}:`)
+      console.log(JSON.stringify(body, null, 2))
       options.body = JSON.stringify(body)
     }
 
     let lastError: Error | null = null
-    
+
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
-        console.warn(`🔥 [ShipStation API] Attempt ${attempt + 1}: Fetching ${url}`)
+        console.log(`🔥 [ShipStation V1 API] Attempt ${attempt + 1}: Fetching ${url}`)
         // Log a masked curl for easy reproduction
         try {
-          const maskedKey = this.apiKey.length > 6 ? `${this.apiKey.slice(0, 3)}***${this.apiKey.slice(-3)}` : '***'
-          const curlBody = body ? ` --data '${JSON.stringify(body)}'` : ''
-          console.warn(`🧪 cURL: curl -X ${method} '${url}' -H 'Content-Type: application/json' -H 'API-Key: ${maskedKey}'${curlBody}`)
+          const maskedAuth = authString.length > 10 ? `${authString.slice(0, 5)}***${authString.slice(-5)}` : '***'
+          const curlBody = body ? ` -d '${JSON.stringify(body)}'` : ''
+          console.log(`🧪 cURL: curl -X ${method} '${url}' -H 'Content-Type: application/json' -H 'Authorization: Basic ${maskedAuth}'${curlBody}`)
         } catch {}
 
         let response: Response
         try {
-          console.warn(`🔥 [ShipStation API] About to call fetch()...`)
+          console.log(`🔥 [ShipStation V1 API] About to call fetch()...`)
           response = await fetch(url, options)
-          console.warn(`✅ [ShipStation API] Fetch completed! Status: ${response.status} ${response.statusText}`)
+          console.log(`✅ [ShipStation V1 API] Fetch completed! Status: ${response.status} ${response.statusText}`)
         } catch (fetchError) {
-          console.error(`❌ [ShipStation API] FETCH THREW ERROR:`, fetchError)
-          console.error(`❌ [ShipStation API] Error name: ${(fetchError as Error).name}`)
-          console.error(`❌ [ShipStation API] Error message: ${(fetchError as Error).message}`)
+          console.error(`❌ [ShipStation V1 API] FETCH THREW ERROR:`, fetchError)
+          console.error(`❌ [ShipStation V1 API] Error name: ${(fetchError as Error).name}`)
+          console.error(`❌ [ShipStation V1 API] Error message: ${(fetchError as Error).message}`)
           throw fetchError
         }
-        
+
         if (!response.ok) {
           const errorBody = await response.text()
-          console.error(`❌ [ShipStation API] HTTP ${response.status}: ${response.statusText}`)
-          console.error(`❌ [ShipStation API] URL: ${url}`)
-          console.error(`❌ [ShipStation API] Response Body:`, errorBody)
-          
+          console.error(`❌ [ShipStation V1 API] HTTP ${response.status}: ${response.statusText}`)
+          console.error(`❌ [ShipStation V1 API] URL: ${url}`)
+          console.error(`❌ [ShipStation V1 API] Response Body:`, errorBody)
+
           let errorData: unknown
           try {
             errorData = JSON.parse(errorBody)
-            console.error(`❌ [ShipStation API] Parsed Error:`, JSON.stringify(errorData, null, 2))
+            console.error(`❌ [ShipStation V1 API] Parsed Error:`, JSON.stringify(errorData, null, 2))
           } catch {
-            errorData = { message: errorBody }
+            errorData = { Message: errorBody }
           }
-          
-          // Handle ShipStation API error format
+
+          // Handle ShipStation V1 API error format (uses PascalCase)
           if (errorData) {
-            const data = errorData as { message?: string; error_code?: string }
-            
+            const data = errorData as { Message?: string; ExceptionMessage?: string; message?: string }
+
             throw new ShipStationError(
-              data.message || `HTTP ${response.status}`,
-              data.error_code || `HTTP_${response.status}`,
+              data.Message || data.ExceptionMessage || data.message || `HTTP ${response.status}`,
+              `HTTP_${response.status}`,
               response.status,
               errorData
             )
@@ -392,19 +593,19 @@ export class ShipStationClient {
         return data as T
       } catch (error) {
         lastError = error as Error
-        
+
         // Don't retry on client errors (4xx)
         if (error instanceof ShipStationError && error.statusCode && error.statusCode < 500) {
           throw error
         }
-        
+
         // Retry on network errors or 5xx errors
         if (attempt < this.maxRetries) {
           const delay = this.retryDelay * Math.pow(2, attempt) // Exponential backoff
           await new Promise(resolve => setTimeout(resolve, delay))
           continue
         }
-        
+
         throw error
       }
     }
@@ -416,7 +617,7 @@ export class ShipStationClient {
     if (error instanceof ShipStationError) {
       return error
     }
-    
+
     if (error instanceof Error) {
       return new ShipStationError(
         `${message}: ${error.message}`,
@@ -425,7 +626,7 @@ export class ShipStationClient {
         error
       )
     }
-    
+
     return new ShipStationError(message, 'UNKNOWN_ERROR')
   }
 }

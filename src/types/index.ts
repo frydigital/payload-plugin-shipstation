@@ -353,9 +353,424 @@ export interface ShippingCostBreakdown {
 }
 
 // ============================================================================
-// ShipStation API Types
+// ShipStation V1 API Types
+// API Documentation: https://www.shipstation.com/docs/api/
 // ============================================================================
 
+/**
+ * ShipStation V1 API Address format
+ * Used in orders, shipments, and address validation
+ */
+export interface ShipStationV1Address {
+  name?: string
+  company?: string
+  street1: string
+  street2?: string
+  street3?: string
+  city: string
+  state: string
+  postalCode: string
+  country: string
+  phone?: string
+  residential?: boolean
+}
+
+/**
+ * ShipStation V1 Order Item
+ * https://www.shipstation.com/docs/api/orders/create-update-order/
+ */
+export interface ShipStationV1OrderItem {
+  lineItemKey?: string
+  sku?: string
+  name: string
+  imageUrl?: string
+  weight?: {
+    value: number
+    units: 'pounds' | 'ounces' | 'grams'
+  }
+  quantity: number
+  unitPrice?: number
+  taxAmount?: number
+  shippingAmount?: number
+  warehouseLocation?: string
+  options?: Array<{ name: string; value: string }>
+  productId?: number
+  fulfillmentSku?: string
+  adjustment?: boolean
+  upc?: string
+}
+
+/**
+ * ShipStation V1 Advanced Options for orders
+ */
+export interface ShipStationV1AdvancedOptions {
+  warehouseId?: number
+  nonMachinable?: boolean
+  saturdayDelivery?: boolean
+  containsAlcohol?: boolean
+  storeId?: number
+  customField1?: string
+  customField2?: string
+  customField3?: string
+  source?: string
+  mergedOrSplit?: boolean
+  mergedIds?: number[]
+  parentId?: number
+  billToParty?: 'my_account' | 'recipient' | 'third_party'
+  billToAccount?: string
+  billToPostalCode?: string
+  billToCountryCode?: string
+}
+
+/**
+ * ShipStation V1 Insurance Options
+ */
+export interface ShipStationV1InsuranceOptions {
+  provider?: 'shipsurance' | 'carrier' | 'provider'
+  insureShipment?: boolean
+  insuredValue?: number
+}
+
+/**
+ * ShipStation V1 International Options
+ */
+export interface ShipStationV1InternationalOptions {
+  contents?: 'merchandise' | 'documents' | 'gift' | 'returned_goods' | 'sample'
+  customsItems?: Array<{
+    customsItemId?: string
+    description?: string
+    quantity?: number
+    value?: number
+    harmonizedTariffCode?: string
+    countryOfOrigin?: string
+  }>
+  nonDelivery?: 'return_to_sender' | 'treat_as_abandoned'
+}
+
+/**
+ * ShipStation V1 Dimensions
+ */
+export interface ShipStationV1Dimensions {
+  length?: number
+  width?: number
+  height?: number
+  units?: 'inches' | 'centimeters'
+}
+
+/**
+ * ShipStation V1 Weight
+ */
+export interface ShipStationV1Weight {
+  value: number
+  units: 'pounds' | 'ounces' | 'grams'
+}
+
+/**
+ * ShipStation V1 Create/Update Order Request
+ * https://www.shipstation.com/docs/api/orders/create-update-order/
+ */
+export interface ShipStationV1CreateOrderRequest {
+  orderNumber: string
+  orderKey?: string
+  orderDate: string
+  paymentDate?: string
+  shipByDate?: string
+  orderStatus: 'awaiting_payment' | 'awaiting_shipment' | 'shipped' | 'on_hold' | 'cancelled'
+  customerId?: number
+  customerUsername?: string
+  customerEmail?: string
+  billTo?: ShipStationV1Address
+  shipTo: ShipStationV1Address
+  items?: ShipStationV1OrderItem[]
+  amountPaid?: number
+  taxAmount?: number
+  shippingAmount?: number
+  customerNotes?: string
+  internalNotes?: string
+  gift?: boolean
+  giftMessage?: string
+  paymentMethod?: string
+  requestedShippingService?: string
+  carrierCode?: string
+  serviceCode?: string
+  packageCode?: string
+  confirmation?: 'none' | 'delivery' | 'signature' | 'adult_signature' | 'direct_signature'
+  shipDate?: string
+  weight?: ShipStationV1Weight
+  dimensions?: ShipStationV1Dimensions
+  insuranceOptions?: ShipStationV1InsuranceOptions
+  internationalOptions?: ShipStationV1InternationalOptions
+  advancedOptions?: ShipStationV1AdvancedOptions
+  tagIds?: number[]
+}
+
+/**
+ * ShipStation V1 Order Response
+ */
+export interface ShipStationV1OrderResponse {
+  orderId: number
+  orderNumber: string
+  orderKey?: string
+  orderDate: string
+  createDate: string
+  modifyDate: string
+  paymentDate?: string
+  shipByDate?: string
+  orderStatus: string
+  customerId?: number
+  customerUsername?: string
+  customerEmail?: string
+  billTo?: ShipStationV1Address
+  shipTo: ShipStationV1Address
+  items?: ShipStationV1OrderItem[]
+  orderTotal?: number
+  amountPaid?: number
+  taxAmount?: number
+  shippingAmount?: number
+  customerNotes?: string
+  internalNotes?: string
+  gift?: boolean
+  giftMessage?: string
+  paymentMethod?: string
+  requestedShippingService?: string
+  carrierCode?: string
+  serviceCode?: string
+  packageCode?: string
+  confirmation?: string
+  shipDate?: string
+  holdUntilDate?: string
+  weight?: ShipStationV1Weight
+  dimensions?: ShipStationV1Dimensions
+  insuranceOptions?: ShipStationV1InsuranceOptions
+  internationalOptions?: ShipStationV1InternationalOptions
+  advancedOptions?: ShipStationV1AdvancedOptions
+  tagIds?: number[]
+  userId?: string
+  externallyFulfilled?: boolean
+  externallyFulfilledBy?: string
+}
+
+/**
+ * ShipStation V1 Get Rates Request
+ * https://www.shipstation.com/docs/api/shipments/get-rates/
+ */
+export interface ShipStationV1GetRatesRequest {
+  carrierCode: string
+  serviceCode?: string
+  packageCode?: string
+  fromPostalCode: string
+  toState?: string
+  toCountry: string
+  toPostalCode: string
+  toCity?: string
+  weight: ShipStationV1Weight
+  dimensions?: ShipStationV1Dimensions
+  confirmation?: 'none' | 'delivery' | 'signature' | 'adult_signature' | 'direct_signature'
+  residential?: boolean
+}
+
+/**
+ * ShipStation V1 Rate Response
+ */
+export interface ShipStationV1RateResponse {
+  serviceName: string
+  serviceCode: string
+  shipmentCost: number
+  otherCost: number
+}
+
+/**
+ * ShipStation V1 Carrier
+ */
+export interface ShipStationV1Carrier {
+  name: string
+  code: string
+  accountNumber?: string
+  requiresFundedAccount?: boolean
+  balance?: number
+  nickname?: string
+  shippingProviderId?: number
+  primary?: boolean
+}
+
+/**
+ * ShipStation V1 Service
+ */
+export interface ShipStationV1Service {
+  carrierCode: string
+  code: string
+  name: string
+  domestic: boolean
+  international: boolean
+}
+
+/**
+ * ShipStation V1 Create Label Request
+ * https://www.shipstation.com/docs/api/shipments/create-label/
+ */
+export interface ShipStationV1CreateLabelRequest {
+  carrierCode: string
+  serviceCode: string
+  packageCode: string
+  confirmation?: 'none' | 'delivery' | 'signature' | 'adult_signature' | 'direct_signature'
+  shipDate: string
+  weight: ShipStationV1Weight
+  dimensions?: ShipStationV1Dimensions
+  shipFrom: ShipStationV1Address
+  shipTo: ShipStationV1Address
+  insuranceOptions?: ShipStationV1InsuranceOptions
+  internationalOptions?: ShipStationV1InternationalOptions
+  advancedOptions?: ShipStationV1AdvancedOptions
+  testLabel?: boolean
+}
+
+/**
+ * ShipStation V1 Create Label Response
+ */
+export interface ShipStationV1CreateLabelResponse {
+  shipmentId: number
+  shipmentCost: number
+  insuranceCost: number
+  trackingNumber: string
+  labelData: string
+  formData?: string
+}
+
+/**
+ * ShipStation V1 Shipment (from list/get endpoints)
+ */
+export interface ShipStationV1Shipment {
+  shipmentId: number
+  orderId: number
+  orderKey?: string
+  userId?: string
+  orderNumber: string
+  createDate: string
+  shipDate: string
+  shipmentCost: number
+  insuranceCost: number
+  trackingNumber: string
+  isReturnLabel: boolean
+  batchNumber?: string
+  carrierCode: string
+  serviceCode: string
+  packageCode: string
+  confirmation?: string
+  warehouseId?: number
+  voided: boolean
+  voidDate?: string
+  marketplaceNotified: boolean
+  notifyErrorMessage?: string
+  shipTo: ShipStationV1Address
+  weight?: ShipStationV1Weight
+  dimensions?: ShipStationV1Dimensions
+  insuranceOptions?: ShipStationV1InsuranceOptions
+  advancedOptions?: ShipStationV1AdvancedOptions
+  shipmentItems?: Array<{
+    orderItemId?: number
+    lineItemKey?: string
+    sku?: string
+    name?: string
+    imageUrl?: string
+    weight?: ShipStationV1Weight
+    quantity?: number
+    unitPrice?: number
+    taxAmount?: number
+    shippingAmount?: number
+    warehouseLocation?: string
+    options?: Array<{ name: string; value: string }>
+    productId?: number
+    fulfillmentSku?: string
+    adjustment?: boolean
+    upc?: string
+  }>
+  labelData?: string
+  formData?: string
+}
+
+/**
+ * ShipStation V1 Validate Address Request
+ * https://www.shipstation.com/docs/api/addresses/validate-an-address/
+ */
+export interface ShipStationV1ValidateAddressRequest {
+  name?: string
+  company?: string
+  street1: string
+  street2?: string
+  street3?: string
+  city: string
+  state: string
+  postalCode: string
+  country: string
+  phone?: string
+  residential?: boolean
+}
+
+/**
+ * ShipStation V1 Validate Address Response
+ */
+export interface ShipStationV1ValidateAddressResponse {
+  valid: boolean
+  address?: ShipStationV1Address
+  messages?: string[]
+}
+
+/**
+ * ShipStation V1 Warehouse
+ */
+export interface ShipStationV1Warehouse {
+  warehouseId: number
+  warehouseName: string
+  originAddress: ShipStationV1Address
+  returnAddress?: ShipStationV1Address
+  createDate: string
+  isDefault?: boolean
+}
+
+// ============================================================================
+// Legacy V2 Types (kept for backward compatibility)
+// These types are deprecated since v0.3.0 and will be removed in v1.0.0
+// ============================================================================
+
+/** 
+ * @deprecated since v0.3.0, will be removed in v1.0.0
+ * Use ShipStationV1Address instead
+ */
+export interface ShipStationAddress {
+  name?: string
+  company_name?: string
+  address_line1: string
+  address_line2?: string
+  address_line3?: string
+  city_locality: string
+  state_province: string
+  postal_code: string
+  country_code: string
+  phone?: string
+  address_residential_indicator?: 'yes' | 'no' | 'unknown'
+}
+
+/** 
+ * @deprecated since v0.3.0, will be removed in v1.0.0
+ * Use ShipStationV1Weight instead 
+ */
+export interface ShipStationPackage {
+  weight: {
+    value: number
+    unit: WeightUnit
+  }
+  dimensions?: {
+    length: number
+    width: number
+    height: number
+    unit: DimensionUnit
+  }
+}
+
+/** 
+ * @deprecated since v0.3.0, will be removed in v1.0.0
+ * V2 API types - kept for backward compatibility 
+ */
 export interface ShipStationShipment {
   shipmentId?: string
   carrierId?: string
@@ -372,8 +787,10 @@ export interface ShipStationShipment {
   validateAddress?: 'no_validation' | 'validate_only' | 'validate_and_clean'
 }
 
-
-
+/** 
+ * @deprecated since v0.3.0, will be removed in v1.0.0
+ * Use ShipStationV1AdvancedOptions instead 
+ */
 export interface ShipStationAdvancedOptions {
   billToAccount?: string
   billToCountryCode?: string
@@ -387,6 +804,10 @@ export interface ShipStationAdvancedOptions {
   dryIceWeight?: Weight
 }
 
+/** 
+ * @deprecated since v0.3.0, will be removed in v1.0.0
+ * V2 API type 
+ */
 export interface ShipStationRateRequest {
   shipment?: ShipStationShipment
   shipmentId?: string
@@ -397,6 +818,10 @@ export interface ShipStationRateRequest {
   }
 }
 
+/** 
+ * @deprecated since v0.3.0, will be removed in v1.0.0
+ * V2 API type 
+ */
 export interface ShipStationRateResponse {
   rateResponse: {
     rates: ShipStationRate[]
@@ -410,6 +835,10 @@ export interface ShipStationRateResponse {
   shipment: ShipStationShipment
 }
 
+/** 
+ * @deprecated since v0.3.0, will be removed in v1.0.0
+ * V2 API type 
+ */
 export interface ShipStationCalculateRatesRequest {
   rate_options: {
     carrier_ids: string[]
@@ -429,6 +858,19 @@ export interface ShipStationCalculateRatesRequest {
   }
 }
 
+/**
+ * Request type for creating orders in ShipStation
+ * Now uses V1 API format internally
+ */
+export interface ShipStationCreateOrderRequest extends ShipStationV1CreateOrderRequest {}
+
+/**
+ * Response type from creating orders in ShipStation
+ * Now uses V1 API format internally
+ */
+export interface ShipStationCreateOrderResponse extends ShipStationV1OrderResponse {}
+
+/** @deprecated V2 API type - use ShipStationCreateOrderRequest instead */
 export interface ShipStationCreateShipmentRequest {
   shipments: Array<{
     validate_address?: 'no_validation' | 'validate_only' | 'validate_and_clean'
@@ -474,6 +916,7 @@ export interface ShipStationCreateShipmentRequest {
   }>
 }
 
+/** @deprecated V2 API type - use ShipStationCreateOrderResponse instead */
 export interface ShipStationCreateShipmentResponse {
   shipments: Array<{
     shipment_id: string
@@ -493,6 +936,7 @@ export interface ShipStationCreateShipmentResponse {
   }>
 }
 
+/** @deprecated V2 API type */
 export interface ShipStationGetShipmentResponse {
   shipment_id: string
   external_shipment_id?: string
@@ -508,6 +952,7 @@ export interface ShipStationGetShipmentResponse {
   modified_at: string
 }
 
+/** @deprecated V2 API type */
 export interface ShipStationCalculateRatesResponse {
   rate_response: {
     rates: Array<{
@@ -529,33 +974,6 @@ export interface ShipStationCalculateRatesResponse {
       ship_date?: string
       estimated_delivery_date?: string
     }>
-  }
-}
-
-export interface ShipStationAddress {
-  name?: string
-  company_name?: string
-  address_line1: string
-  address_line2?: string
-  address_line3?: string
-  city_locality: string
-  state_province: string
-  postal_code: string
-  country_code: string
-  phone?: string
-  address_residential_indicator?: 'yes' | 'no' | 'unknown'
-}
-
-export interface ShipStationPackage {
-  weight: {
-    value: number
-    unit: WeightUnit
-  }
-  dimensions?: {
-    length: number
-    width: number
-    height: number
-    unit: DimensionUnit
   }
 }
 
@@ -632,16 +1050,17 @@ export interface MoneyAmount {
   amount: number
 }
 
+/**
+ * ShipStation V1 Carrier format
+ * https://www.shipstation.com/docs/api/carriers/list/
+ */
 export interface ShipStationCarrier {
-  carrier_id: string
-  carrier_code: string
-  carrier_name: string
+  name: string
+  code: string
+  accountNumber?: string
+  requiresFundedAccount?: boolean
+  balance?: number
   nickname?: string
-  account_number?: string
-  services?: Array<{
-    service_code: string
-    name: string
-    domestic: boolean
-    international: boolean
-  }>
+  shippingProviderId?: number
+  primary?: boolean
 }

@@ -2,9 +2,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createShipmentHandler } from '../../src/endpoints/createShipment'
 import { createMockPayload, createMockRequest, createMockShipStationClient } from '../testUtils'
-import { mockOrder, mockShipStationSuccessResponse } from '../mockData'
+import { mockOrder, mockShipStationV1OrderResponse } from '../mockData'
 
-describe('createShipment endpoint', () => {
+describe('createShipment endpoint (V1 API)', () => {
   let mockPayload: any
   let mockClient: any
   let mockReq: any
@@ -14,45 +14,47 @@ describe('createShipment endpoint', () => {
     mockClient = createMockShipStationClient()
     mockPayload.shipStationClient = mockClient
     mockPayload.config.shipStationPlugin = {
-      warehouseId: 'se-warehouse-123',
+      warehouseId: '123',
     }
 
     vi.clearAllMocks()
   })
 
   describe('success cases', () => {
-    it('should create shipment successfully', async () => {
+    it('should create order successfully via V1 API', async () => {
       const requestBody = { orderId: 'order_123' }
       mockReq = createMockRequest(requestBody, mockPayload)
 
       mockPayload.findByID.mockResolvedValue(mockOrder)
       mockPayload.update.mockResolvedValue(mockOrder)
-      mockClient.createShipment.mockResolvedValue(mockShipStationSuccessResponse)
+      // V1 API uses createOrder instead of createShipment
+      mockClient.createOrder.mockResolvedValue(mockShipStationV1OrderResponse)
 
       const response = await createShipmentHandler(mockReq)
       const jsonData = await response.json()
 
       expect(response.status).toBe(200)
       expect(jsonData.success).toBe(true)
-      expect(jsonData.shipmentId).toBe('se-123456789')
+      // V1 API returns orderId (number) not shipmentId (string)
+      expect(jsonData.shipmentId).toBe(String(mockShipStationV1OrderResponse.orderId))
       expect(jsonData.orderId).toBe('order_123')
       expect(jsonData.status).toBe('processing')
     })
 
-    it('should return shipment details on success', async () => {
+    it('should return order details on success', async () => {
       const requestBody = { orderId: 'order_456' }
       mockReq = createMockRequest(requestBody, mockPayload)
 
       mockPayload.findByID.mockResolvedValue(mockOrder)
       mockPayload.update.mockResolvedValue(mockOrder)
-      mockClient.createShipment.mockResolvedValue(mockShipStationSuccessResponse)
+      mockClient.createOrder.mockResolvedValue(mockShipStationV1OrderResponse)
 
       const response = await createShipmentHandler(mockReq)
       const jsonData = await response.json()
 
       expect(jsonData).toMatchObject({
         success: true,
-        shipmentId: 'se-123456789',
+        shipmentId: String(mockShipStationV1OrderResponse.orderId),
         orderId: 'order_456',
         status: 'processing',
       })
@@ -111,12 +113,12 @@ describe('createShipment endpoint', () => {
       })
     })
 
-    it('should handle shipment creation errors gracefully', async () => {
+    it('should handle order creation errors gracefully', async () => {
       const requestBody = { orderId: 'order_123' }
       mockReq = createMockRequest(requestBody, mockPayload)
 
       mockPayload.findByID.mockResolvedValue(mockOrder)
-      mockClient.createShipment.mockRejectedValue(new Error('API timeout'))
+      mockClient.createOrder.mockRejectedValue(new Error('API timeout'))
       mockPayload.update.mockResolvedValue({})
 
       const response = await createShipmentHandler(mockReq)
@@ -156,7 +158,7 @@ describe('createShipment endpoint', () => {
       expect(response.status).toBe(500)
       expect(jsonData.success).toBe(false)
       expect(mockPayload.logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Shipment creation failed')
+        expect.stringContaining('Order creation failed')
       )
     })
   })
