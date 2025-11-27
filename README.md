@@ -6,6 +6,8 @@
 
 A comprehensive ShipStation integration plugin for Payload CMS ecommerce projects. Provides real-time shipping rate calculation, address validation, multi-package handling, and webhook support for tracking updates.
 
+> **Note:** This plugin uses the ShipStation V1 API (`ssapi.shipstation.com`). See [ShipStation API Documentation](https://www.shipstation.com/docs/api/) for full API reference.
+
 ## Features
 
 ✅ **Phase 1 (Available Now)**
@@ -38,19 +40,27 @@ yarn add @frydigital/payload-plugin-shipstation
 
 ### 2. Environment Variables
 
-Add the following to your `.env` file:
+Add the following to your `.env` file (see `.env.example` for full template):
 
 ```bash
-# ShipStation API Configuration
-SHIPSTATION_API_KEY=your_shipstation_api_key
-SHIPSTATION_WAREHOUSE_ID=se-123456
+# ShipStation V1 API Configuration
+# Get credentials from ShipStation: Settings > Account > API Settings
+
+# Option 1: Combined format (API Key:Secret)
+SHIPSTATION_API_KEY=your_api_key:your_api_secret
+
+# Option 2: Separate variables
+# SHIPSTATION_API_KEY=your_api_key
+# SHIPSTATION_API_SECRET=your_api_secret
+
+# Warehouse ID - numeric ID from ShipStation (Settings > Shipping > Ship From Locations)
+SHIPSTATION_WAREHOUSE_ID=123456
+
+# Optional: Webhook secret for signature verification
 SHIPSTATION_WEBHOOK_SECRET=your_webhook_secret
 
 # Optional: Redis for rate caching
 REDIS_URL=redis://localhost:6379
-
-# Optional: Sandbox mode for development
-SHIPSTATION_SANDBOX_MODE=true
 ```
 
 ### 3. Configure Plugin
@@ -163,15 +173,13 @@ export async function POST(req: NextRequest) {
 {
   "rates": [
     {
-      "rateId": "se-123456",
-      "carrierId": "se-789",
-      "carrierName": "Canada Post",
+      "serviceName": "Canada Post Regular Parcel",
       "serviceCode": "canada_post_regular_parcel",
-      "serviceType": "Regular Parcel",
-      "shippingAmount": { "currency": "CAD", "amount": 12.50 },
+      "carrierCode": "canada_post",
+      "shipmentCost": 12.50,
+      "otherCost": 0,
       "deliveryDays": 3,
-      "estimatedDeliveryDate": "2025-11-23T23:59:00Z",
-      "trackable": true
+      "estimatedDeliveryDate": "2025-11-23T23:59:00Z"
     }
   ],
   "freeShipping": false,
@@ -188,17 +196,16 @@ const response = await fetch('/api/shipping/validate-address', {
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     address: {
-      addressLine1: '123 Main Street',
+      street1: '123 Main Street',
       city: 'Toronto',
       state: 'ON',
       postalCode: 'M5H 2N2',
       country: 'CA',
     },
-    mode: 'validate_and_clean',
   }),
 })
 
-const { valid, correctedAddress } = await response.json()
+const { isValid, normalizedAddress, errors } = await response.json()
 ```
 
 ### Product Shipping Configuration
