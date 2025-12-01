@@ -167,7 +167,7 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
     }, null)
 
     // Get ship from address from settings if available
-    const shipFromPostalCode = shippingSettings?.defaultOriginPostalCode || ''
+    //const shipFromPostalCode = shippingSettings?.defaultOriginPostalCode || ''
     
     // Build ship to address for V1 API
     const shipToAddress = {
@@ -183,8 +183,8 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       addressLine1: '',
       city: '',
       state: '',
-      postalCode: shipFromPostalCode,
-      country: shipTo.country || 'US', // Default to same country as shipTo
+      postalCode: 'V0N 1B4',
+      country: shipTo.country || 'CA', // Default to same country as shipTo
     }
     
     const getRatesParams = {
