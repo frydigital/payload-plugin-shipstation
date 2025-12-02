@@ -204,11 +204,11 @@ export class ShipStationClient {
             carrierCode: carrierCode,
             shippingAmount: {
               amount: rate.shipmentCost || 0,
-              currency: 'USD', // V1 API returns USD by default
+              currency: 'CAD', // Use store currency (CAD)
             },
             otherAmount: {
               amount: rate.otherCost || 0,
-              currency: 'USD',
+              currency: 'CAD',
             },
           }))
           allRates.push(...rates)

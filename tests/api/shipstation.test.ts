@@ -2,12 +2,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ShipStationClient, ShipStationError } from '../../src/api/shipstation'
 import {
-  mockShipStationV1CarriersResponse,
-  mockShipStationV1OrderResponse,
-  mockShipStationV1RatesResponse,
-  mockShipStationV1ServicesResponse,
-  mockShipStationV1Shipment,
-  mockShipStationV1ValidateAddressResponse,
+    mockShipStationV1CarriersResponse,
+    mockShipStationV1OrderResponse,
+    mockShipStationV1RatesResponse,
+    mockShipStationV1ServicesResponse,
+    mockShipStationV1Shipment,
+    mockShipStationV1ValidateAddressResponse,
 } from '../mockData'
 import { createMockFetch } from '../testUtils'
 
