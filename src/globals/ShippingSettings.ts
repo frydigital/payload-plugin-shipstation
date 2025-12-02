@@ -61,6 +61,53 @@ export const ShippingSettings: GlobalConfig = {
           label: 'Carriers',
           fields: [
             {
+              name: 'defaultOriginPostalCode',
+              type: 'text',
+              label: 'Default Origin Postal Code',
+              admin: {
+                description: 'Postal code used as the ship-from origin when calculating rates (required for V1 API).',
+                placeholder: 'e.g., V0N 1B4',
+              },
+            },
+            {
+              type: 'group',
+              name: 'defaultPackage',
+              label: 'Default Package (Fallback)',
+              admin: {
+                description: 'Used when cart items lack dimensions or weight. Helps ensure V1 rate requests have all required fields.',
+              },
+              fields: [
+                {
+                  type: 'group',
+                  name: 'dimensions',
+                  label: 'Default Dimensions',
+                  fields: [
+                    { name: 'length', type: 'number', defaultValue: 10 },
+                    { name: 'width', type: 'number', defaultValue: 10 },
+                    { name: 'height', type: 'number', defaultValue: 5 },
+                    { name: 'unit', type: 'select', defaultValue: 'inch', options: [
+                      { label: 'Inch', value: 'inch' },
+                      { label: 'Centimeter', value: 'centimeter' },
+                    ]},
+                  ],
+                },
+                {
+                  type: 'group',
+                  name: 'weight',
+                  label: 'Default Weight',
+                  fields: [
+                    { name: 'value', type: 'number', defaultValue: 1 },
+                    { name: 'unit', type: 'select', defaultValue: 'kilogram', options: [
+                      { label: 'Ounce', value: 'ounce' },
+                      { label: 'Pound', value: 'pound' },
+                      { label: 'Gram', value: 'gram' },
+                      { label: 'Kilogram', value: 'kilogram' },
+                    ]},
+                  ],
+                },
+              ],
+            },
+            {
               name: 'preferredCarriers',
               type: 'array',
               label: 'Preferred Carriers',

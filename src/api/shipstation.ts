@@ -175,16 +175,15 @@ export class ShipStationClient {
       try {
         const requestBody: ShipStationV1GetRatesRequest = {
           carrierCode,
-          fromPostalCode: fromPostalCode || '00000', // Fallback if not provided
-          toState: params.shipTo.state,
+          fromPostalCode: fromPostalCode || 'V8E0Y2', // Fallback if not provided
           toCountry: params.shipTo.country,
           toPostalCode: params.shipTo.postalCode,
-          toCity: params.shipTo.city,
           weight,
           dimensions,
           confirmation: params.requiresSignature ? 'signature' : 'none',
           residential: params.residential,
         }
+            // Removed toState and toCity as per user instruction
 
         if (params.serviceCode) {
           requestBody.serviceCode = params.serviceCode

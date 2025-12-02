@@ -311,6 +311,46 @@ describe('ShipStationClient V1 API', () => {
 
       expect(rates).toEqual([])
     })
+
+    it('should omit toState and toCity in V1 getrates payload', async () => {
+      const fetchSpy = vi.fn(async (url: string, options?: RequestInit) => {
+        const body = options?.body ? JSON.parse(options.body as string) : {}
+        // Assert payload shape does not include toState/toCity
+        expect(body).toHaveProperty('carrierCode')
+        expect(body).toHaveProperty('fromPostalCode')
+        expect(body).toHaveProperty('toCountry')
+        expect(body).toHaveProperty('toPostalCode')
+        expect(body).not.toHaveProperty('toState')
+        expect(body).not.toHaveProperty('toCity')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => mockShipStationV1RatesResponse,
+        }
+      })
+      global.fetch = fetchSpy as any
+
+      await client.getRates({
+        shipTo: {
+          addressLine1: '123 Main St',
+          city: 'Vancouver',
+          state: 'BC',
+          postalCode: 'V6B1A1',
+          country: 'CA',
+        },
+        shipFrom: {
+          addressLine1: '456 Test St',
+          city: 'Toronto',
+          state: 'ON',
+          postalCode: 'M5V1A1',
+          country: 'CA',
+        },
+        weight: { value: 1, unit: 'kilogram' },
+        carrierCodes: ['canada_post'],
+      })
+
+      expect(fetchSpy).toHaveBeenCalledOnce()
+    })
   })
 
   describe('validateAddress', () => {
