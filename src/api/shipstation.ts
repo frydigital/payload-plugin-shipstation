@@ -88,36 +88,55 @@ export class ShipStationClient {
     return this.warehouseId
   }
 
-  // Weight conversion constant for kg to grams
+  // Weight conversion constants to normalize to grams
   private static readonly KG_TO_GRAMS = 1000
+  private static readonly LB_TO_GRAMS = 453.59237
+  private static readonly OZ_TO_GRAMS = 28.349523125
+  // Dimension conversion constant to normalize to centimeters
+  private static readonly IN_TO_CM = 2.54
 
   /**
    * Convert internal weight unit to ShipStation V1 weight unit
    */
-  private toV1WeightUnit(unit: WeightUnit): 'pounds' | 'ounces' | 'grams' {
-    switch (unit) {
-      case 'pound':
-        return 'pounds'
-      case 'ounce':
-        return 'ounces'
-      case 'gram':
-        return 'grams'
-      case 'kilogram':
-        // Convert kg to grams for V1 API
-        return 'grams'
-      default:
-        return 'pounds'
-    }
+  private toV1WeightUnit(_unit: WeightUnit): 'grams' {
+    // Normalize to grams for all calculations
+    return 'grams'
   }
 
   /**
    * Convert weight value if needed (for kilogram -> grams conversion)
    */
   private convertWeightValue(value: number, unit: WeightUnit): number {
-    if (unit === 'kilogram') {
-      return value * ShipStationClient.KG_TO_GRAMS
+    // Convert any unit to grams
+    switch (unit) {
+      case 'kilogram':
+        return value * ShipStationClient.KG_TO_GRAMS
+      case 'gram':
+        return value
+      case 'pound':
+        return value * ShipStationClient.LB_TO_GRAMS
+      case 'ounce':
+        return value * ShipStationClient.OZ_TO_GRAMS
+      default:
+        return value
     }
-    return value
+  }
+
+  /**
+   * Convert dimensions to centimeters regardless of input units
+   */
+  private convertDimensionsToCM(dimensions?: Dimensions): ShipStationV1Dimensions | undefined {
+    if (!dimensions) return undefined
+    const isCm = dimensions.unit === 'centimeter'
+    const length = isCm ? dimensions.length : dimensions.length * ShipStationClient.IN_TO_CM
+    const width = isCm ? dimensions.width : dimensions.width * ShipStationClient.IN_TO_CM
+    const height = isCm ? dimensions.height : dimensions.height * ShipStationClient.IN_TO_CM
+    return {
+      length,
+      width,
+      height,
+      units: 'centimeters',
+    }
   }
 
   /**
@@ -151,22 +170,14 @@ export class ShipStationClient {
       console.warn('⚠️ [ShipStation V1] No fromPostalCode provided - using default')
     }
 
-    // Convert weight to V1 format
+    // Convert weight to grams by default
     const weight: ShipStationV1Weight = {
       value: this.convertWeightValue(params.weight.value, params.weight.unit),
-      units: this.toV1WeightUnit(params.weight.unit),
+      units: 'grams',
     }
 
     // Convert dimensions to V1 format if provided
-    let dimensions: ShipStationV1Dimensions | undefined
-    if (params.dimensions) {
-      dimensions = {
-        length: params.dimensions.length,
-        width: params.dimensions.width,
-        height: params.dimensions.height,
-        units: params.dimensions.unit === 'centimeter' ? 'centimeters' : 'inches',
-      }
-    }
+    const dimensions = this.convertDimensionsToCM(params.dimensions)
 
     // Collect rates from all carriers
     const allRates: ShipStationRate[] = []
