@@ -11,7 +11,7 @@ A comprehensive ShipStation integration plugin for Payload CMS ecommerce project
 ## Features
 
 ✅ **Phase 1 (Available Now)**
-- 🚚 Real-time shipping rate calculation via ShipStation API
+- 🚚 Real-time shipping rate calculation via ShipStation API (v1)
 - 🍁 Canadian provincial flat rates (all 13 provinces/territories)
 - 📍 Custom shipping zones with postal code pattern matching
 - 🎁 Free shipping thresholds with rule-based eligibility
@@ -21,7 +21,7 @@ A comprehensive ShipStation integration plugin for Payload CMS ecommerce project
 - ⚡ Rate caching (Redis + in-memory fallback)
 - 🔐 Secure API credential management
 
-🚧 **Phase 2 (Coming Q1 2026)**
+🚧 **Phase 2**
 - 🌍 International shipping with customs forms
 - 💼 Multi-carrier account management
 - 📊 Shipping analytics and performance tracking
