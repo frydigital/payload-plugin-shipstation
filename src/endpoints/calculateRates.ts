@@ -157,7 +157,7 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       return sum + (weight * quantity)
     }, 0)
     
-    // Use largest dimensions from items (ShipStation will calculate based on package size)
+    // Use largest dimensions from items (fallback to settings default)
     const largestDimensions = items.reduce((largest: any, item: any) => {
       if (!item.dimensions) return largest
       if (!largest) return item.dimensions
@@ -166,8 +166,16 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       return itemVolume > largestVolume ? item.dimensions : largest
     }, null)
 
+    const defaultDims = shippingSettings?.defaultPackage?.dimensions
+    const effectiveDimensions = largestDimensions || (defaultDims ? {
+      length: defaultDims.length,
+      width: defaultDims.width,
+      height: defaultDims.height,
+      unit: defaultDims.unit,
+    } : undefined)
+
     // Get ship from address from settings if available
-    const shipFromPostalCode = shippingSettings?.defaultOriginPostalCode || ''
+    //const shipFromPostalCode = shippingSettings?.defaultOriginPostalCode || ''
     
     // Build ship to address for V1 API
     const shipToAddress = {
@@ -178,20 +186,41 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       country: shipTo.country || '',
     }
 
+    // Validate required address fields for V1
+    if (!shipToAddress.postalCode || !shipToAddress.country) {
+      return Response.json({
+        error: 'Destination postalCode and country are required for shipping rate calculation.',
+      }, { status: 400 })
+    }
+    // toState and toCity are optional for V1; omit validation per instruction
+
     // Build ship from address for V1 API (minimal - just postal code needed for rates)
+    const originPostal = shippingSettings?.defaultOriginPostalCode
     const shipFromAddress = {
       addressLine1: '',
       city: '',
       state: '',
-      postalCode: shipFromPostalCode,
-      country: shipTo.country || 'US', // Default to same country as shipTo
+      postalCode: originPostal || '',
+      country: shipTo.country || 'CA', // Default to same country as shipTo
+    }
+
+    if (!shipFromAddress.postalCode) {
+      return Response.json({
+        error: 'Origin postal code is not configured. Please set Default Origin Postal Code in Shipping Settings.',
+      }, { status: 400 })
     }
     
+    // Ensure weight present and valid
+    const defaultWeight = shippingSettings?.defaultPackage?.weight
+    const firstUnit = items[0]?.weight?.unit || defaultWeight?.unit || 'kilogram'
+    const normalizedUnit = normalizeWeightUnit(firstUnit)
+    const weightValue = totalWeight > 0 ? totalWeight : (defaultWeight?.value || 1)
+
     const getRatesParams = {
       shipTo: shipToAddress,
       shipFrom: shipFromAddress,
-      weight: { value: totalWeight, unit: items[0]?.weight?.unit || 'kilogram' },
-      dimensions: largestDimensions,
+      weight: { value: weightValue, unit: normalizedUnit },
+      dimensions: effectiveDimensions,
       carrierCodes, // V1 API uses carrierCodes
       requiresSignature: items.some((item: any) => item.requiresSignature),
       residential: shipTo.addressResidentialIndicator === 'yes' ? true : shipTo.addressResidentialIndicator === 'no' ? false : undefined,
@@ -216,13 +245,20 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       freeShipping: false,
     })
   } catch (err) {
-    const error = err as Error
     const elapsed = Date.now() - startTime
-    console.log(`❌ [ShipStation V1] Rate calculation error after ${elapsed}ms: ${error.message}`)
-    console.log(`❌ [ShipStation V1] Error stack: ${error.stack}`)
-    req.payload.logger.error(`❌ [ShipStation V1] Rate calculation error after ${elapsed}ms: ${error.message}`)
+    const error = err as any
+    console.log(`❌ [ShipStation V1] Rate calculation error after ${elapsed}ms: ${error?.message}`)
+    console.log(`❌ [ShipStation V1] Error stack: ${error?.stack}`)
+    req.payload.logger.error(`❌ [ShipStation V1] Rate calculation error after ${elapsed}ms: ${error?.message}`)
+
+    // Surface ShipStation V1 error details if present (PascalCase fields)
+    const details = error?.details || undefined
+    const shipstationMessage = details?.ExceptionMessage || details?.Message
+    const statusCode = typeof error?.statusCode === 'number' ? error.statusCode : 500
+
     return Response.json({
-      error: error.message || 'Failed to calculate rates',
-    }, { status: 500 })
+      error: shipstationMessage || error?.message || 'Failed to calculate rates',
+      details,
+    }, { status: statusCode })
   }
 }
