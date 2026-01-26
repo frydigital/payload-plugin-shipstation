@@ -1,4 +1,5 @@
 import type { Endpoint } from 'payload'
+import { GetRatesParams } from '../api/shipstation'
 import type { LightspeedCart, LightspeedCartItem } from '../types/lightspeed'
 
 const normalizeWeightUnit = (unit: string): string => {
@@ -193,7 +194,7 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       city: toAddress.city || '',
       state: toAddress.province || '',
       postalCode: toAddress.postalCode || '',
-      country: toAddress.country || '',
+      country: toAddress.country || 'CA',
     }
 
     // Validate required address fields for V1
@@ -234,14 +235,14 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
     const weightValue = totalWeight > 0 ? totalWeight : defaultWeight?.value || 1
 
     const getRatesParams = {
-      toAddress: toAddressAddress,
+      shipTo: toAddressAddress,
       shipFrom: shipFromAddress,
       weight: { value: weightValue, unit: normalizedUnit },
       dimensions: effectiveDimensions,
       carrierCodes, // V1 API uses carrierCodes
       requiresSignature: items.some((item) => item.requiresSignature),
       residential: toAddress.addressResidentialIndicator,
-    }
+    } as GetRatesParams
 
     const rates = await client.getRates(getRatesParams)
 
