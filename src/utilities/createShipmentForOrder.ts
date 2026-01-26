@@ -1,18 +1,18 @@
 import { format } from 'date-fns'
 import type { Payload } from 'payload'
-import type { 
-  OrderForShipment, 
-  OrderLineItem, 
-  ShipStationCreateOrderRequest, 
-  ShipStationCreateOrderResponse, 
+import type {
+  OrderForShipment,
+  OrderLineItem,
   ShipStationPluginOptions,
+  ShipStationV1CreateOrderRequest,
   ShipStationV1OrderItem,
+  ShipStationV1OrderResponse,
   ShipStationV1Weight,
 } from '../types'
 
 // Minimal client shape used here - V1 API uses createOrder
 interface ShipStationClient {
-  createOrder: (request: ShipStationCreateOrderRequest) => Promise<ShipStationCreateOrderResponse>
+  createOrder: (request: ShipStationV1CreateOrderRequest) => Promise<ShipStationV1OrderResponse>
 }
 
 // Weight conversion constants
@@ -52,23 +52,29 @@ function calculateTotalWeightPounds(items: OrderLineItem[]): number {
   return items.reduce((sum, item) => {
     const product = typeof item.product === 'object' ? item.product : undefined
     const variant = typeof item.variant === 'object' ? item.variant : undefined
-    
+
     // Extract weight from item, variant, or product
     let w: { value: number; unit: string } | undefined
     if (item.weight?.value && item.weight.unit) {
       w = { value: item.weight.value, unit: item.weight.unit }
-    } else if ((variant as any)?.shippingDetails?.weight?.value && (variant as any)?.shippingDetails?.weight?.unit) {
+    } else if (
+      (variant as any)?.shippingDetails?.weight?.value &&
+      (variant as any)?.shippingDetails?.weight?.unit
+    ) {
       w = (variant as any).shippingDetails.weight
-    } else if ((product as any)?.shippingDetails?.weight?.value && (product as any)?.shippingDetails?.weight?.unit) {
+    } else if (
+      (product as any)?.shippingDetails?.weight?.value &&
+      (product as any)?.shippingDetails?.weight?.unit
+    ) {
       w = (product as any).shippingDetails.weight
     }
-    
+
     if (!w?.value || !w.unit) return sum
-    
+
     const quantity = item.quantity || 1
     const v = w.value * quantity
     const unit = w.unit.toLowerCase()
-    
+
     // Convert all to pounds using named constants
     switch (unit) {
       case 'kilogram':
@@ -92,7 +98,7 @@ function calculateTotalWeightPounds(items: OrderLineItem[]): number {
 /**
  * Helper function to create an order in ShipStation for a Payload order
  * Uses V1 API (POST /orders/createorder)
- * 
+ *
  * V1 API workflow:
  * 1. Create order with customer/shipping details
  * 2. Orders appear in ShipStation for fulfillment
@@ -109,7 +115,10 @@ export async function createShipmentForOrder(
     // Resolve order document
     const order: OrderForShipment = orderDoc
       ? orderDoc
-      : (await payload.findByID({ collection: 'orders', id: orderId })) as unknown as OrderForShipment
+      : ((await payload.findByID({
+          collection: 'orders',
+          id: orderId,
+        })) as unknown as OrderForShipment)
 
     if (!order) throw new Error('Order not found')
     if (order.shippingMethod !== 'shipping') throw new Error('Order is not flagged for shipping')
@@ -133,20 +142,26 @@ export async function createShipmentForOrder(
     const items: ShipStationV1OrderItem[] = (order.items || []).map((item: OrderLineItem) => {
       const product = typeof item.product === 'object' ? item.product : undefined
       const variant = typeof item.variant === 'object' ? item.variant : undefined
-      
+
       // Extract weight from item, variant shippingDetails, or product shippingDetails
       let weight: ShipStationV1Weight | undefined
       if (item.weight?.value && item.weight.unit) {
         weight = convertToV1Weight({ value: item.weight.value, unit: item.weight.unit })
-      } else if ((variant as any)?.shippingDetails?.weight?.value && (variant as any)?.shippingDetails?.weight?.unit) {
+      } else if (
+        (variant as any)?.shippingDetails?.weight?.value &&
+        (variant as any)?.shippingDetails?.weight?.unit
+      ) {
         weight = convertToV1Weight((variant as any).shippingDetails.weight)
-      } else if ((product as any)?.shippingDetails?.weight?.value && (product as any)?.shippingDetails?.weight?.unit) {
+      } else if (
+        (product as any)?.shippingDetails?.weight?.value &&
+        (product as any)?.shippingDetails?.weight?.unit
+      ) {
         weight = convertToV1Weight((product as any).shippingDetails.weight)
       }
-      
+
       // Unit price in dollars (V1 API expects dollars, not cents)
       const unitPrice = typeof item.unitPrice === 'number' ? item.unitPrice / 100 : undefined
-      
+
       return {
         lineItemKey: item.product && typeof item.product === 'object' ? item.product.id : undefined,
         sku: variant?.sku || product?.sku,
@@ -159,19 +174,22 @@ export async function createShipmentForOrder(
 
     // Calculate total weight in pounds for the order level
     const totalWeightPounds = calculateTotalWeightPounds(order.items || [])
-    const orderWeight: ShipStationV1Weight | undefined = totalWeightPounds > 0 
-      ? { value: parseFloat(totalWeightPounds.toFixed(2)), units: 'pounds' }
-      : undefined
+    const orderWeight: ShipStationV1Weight | undefined =
+      totalWeightPounds > 0
+        ? { value: parseFloat(totalWeightPounds.toFixed(2)), units: 'pounds' }
+        : undefined
 
     // Build V1 order request
     // https://www.shipstation.com/docs/api/orders/create-update-order/
-    const orderRequest: ShipStationCreateOrderRequest = {
+    const orderRequest: ShipStationV1CreateOrderRequest = {
       orderNumber: orderId,
       orderKey: orderId, // Use orderId as orderKey for idempotency
       orderDate: format(new Date(), "yyyy-MM-dd'T'HH:mm:ss"),
       orderStatus: 'awaiting_shipment',
       shipTo: {
-        name: `${shippingAddress.firstName || ''} ${shippingAddress.lastName || ''}`.trim() || 'Customer',
+        name:
+          `${shippingAddress.firstName || ''} ${shippingAddress.lastName || ''}`.trim() ||
+          'Customer',
         company: shippingAddress.company,
         street1: shippingAddress.addressLine1,
         street2: shippingAddress.addressLine2,
@@ -188,10 +206,10 @@ export async function createShipmentForOrder(
       // Tax amount in dollars
       taxAmount: 0,
       // Shipping amount in dollars
-      shippingAmount: order.shippingCost 
-        ? order.shippingCost / 100 
-        : order.selectedRate?.cost 
-          ? order.selectedRate.cost / 100 
+      shippingAmount: order.shippingCost
+        ? order.shippingCost / 100
+        : order.selectedRate?.cost
+          ? order.selectedRate.cost / 100
           : undefined,
       customerNotes: order.customerNotes,
       // Carrier and service from selected rate
@@ -206,25 +224,37 @@ export async function createShipmentForOrder(
     }
 
     if (!order.selectedRate?.serviceCode) {
-      console.warn('[ShipStation V1 Debug] WARNING: selectedRate.serviceCode missing; serviceCode will be absent')
+      console.warn(
+        '[ShipStation V1 Debug] WARNING: selectedRate.serviceCode missing; serviceCode will be absent',
+      )
     }
     if (!orderRequest.shippingAmount) {
-      console.warn('[ShipStation V1 Debug] WARNING: shippingAmount unresolved (no shippingCost or selectedRate.cost)')
+      console.warn(
+        '[ShipStation V1 Debug] WARNING: shippingAmount unresolved (no shippingCost or selectedRate.cost)',
+      )
     } else {
       console.warn('[ShipStation V1 Debug] shippingAmount resolved:', orderRequest.shippingAmount)
     }
     console.warn('[ShipStation V1 Debug] amountPaid resolved:', orderRequest.amountPaid)
-    console.warn(`🔥 [createShipmentForOrder V1] Prepared Request for Order ${orderId}:`, JSON.stringify(orderRequest, null, 2))
+    console.warn(
+      `🔥 [createShipmentForOrder V1] Prepared Request for Order ${orderId}:`,
+      JSON.stringify(orderRequest, null, 2),
+    )
 
     payload.logger.info(`Creating order in ShipStation for ${orderId}`)
     const orderResponse = await client.createOrder(orderRequest)
-    
+
     if (!orderResponse || !orderResponse.orderId) {
       throw new Error('ShipStation returned no order')
     }
-    
+
     // Update local order with ShipStation details
-    const shippingCost = order.shippingCost ?? order.selectedRate?.cost ?? (order.total && order.amount && order.total > order.amount ? order.total - order.amount : undefined)
+    const shippingCost =
+      order.shippingCost ??
+      order.selectedRate?.cost ??
+      (order.total && order.amount && order.total > order.amount
+        ? order.total - order.amount
+        : undefined)
     await payload.update({
       collection: 'orders',
       id: orderId,
@@ -240,8 +270,12 @@ export async function createShipmentForOrder(
       },
     })
     payload.logger.info(`Order created successfully in ShipStation: ${orderResponse.orderId}`)
-    
-    return { success: true, shipmentId: String(orderResponse.orderId), orderId: orderResponse.orderId }
+
+    return {
+      success: true,
+      shipmentId: String(orderResponse.orderId),
+      orderId: orderResponse.orderId,
+    }
   } catch (error) {
     payload.logger.error(`Order creation failed: ${(error as Error).message}`)
     return { success: false, error: (error as Error).message }

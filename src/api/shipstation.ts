@@ -1,15 +1,15 @@
 import type {
   Dimensions,
   ShipStationCarrier,
-  ShipStationCreateOrderRequest,
-  ShipStationCreateOrderResponse,
   ShipStationError as ShipStationErrorType,
   ShipStationRate,
   ShipStationV1Address,
   ShipStationV1CreateLabelRequest,
   ShipStationV1CreateLabelResponse,
+  ShipStationV1CreateOrderRequest,
   ShipStationV1Dimensions,
   ShipStationV1GetRatesRequest,
+  ShipStationV1OrderResponse,
   ShipStationV1RateResponse,
   ShipStationV1Service,
   ShipStationV1Shipment,
@@ -310,9 +310,7 @@ export class ShipStationClient {
    * This replaces the V2 createShipment method. In V1, you create orders first,
    * then create labels/shipments from those orders.
    */
-  async createOrder(
-    request: ShipStationCreateOrderRequest,
-  ): Promise<ShipStationCreateOrderResponse> {
+  async createOrder(request: ShipStationV1CreateOrderRequest): Promise<ShipStationV1OrderResponse> {
     const url = `${this.baseUrl}/orders/createorder`
 
     console.log('🔥 [ShipStation V1] createOrder called')
@@ -321,7 +319,7 @@ export class ShipStationClient {
     console.log('🔥 [ShipStation V1] Request Body:', JSON.stringify(request, null, 2))
 
     try {
-      const response = await this.makeRequest<ShipStationCreateOrderResponse>('POST', url, request)
+      const response = await this.makeRequest<ShipStationV1OrderResponse>('POST', url, request)
       console.log('📥 [ShipStation V1] createOrder Response:', JSON.stringify(response, null, 2))
       return response
     } catch (error) {
@@ -334,11 +332,11 @@ export class ShipStationClient {
    * Get an order from ShipStation V1 API
    * https://www.shipstation.com/docs/api/orders/get-order/
    */
-  async getOrder(orderId: number): Promise<ShipStationCreateOrderResponse> {
+  async getOrder(orderId: number): Promise<ShipStationV1OrderResponse> {
     const url = `${this.baseUrl}/orders/${orderId}`
 
     try {
-      const response = await this.makeRequest<ShipStationCreateOrderResponse>('GET', url)
+      const response = await this.makeRequest<ShipStationV1OrderResponse>('GET', url)
       return response
     } catch (error) {
       throw this.handleError(error, 'Failed to get order')

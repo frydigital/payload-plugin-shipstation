@@ -1,6 +1,6 @@
 import type { Endpoint } from 'payload'
 import { GetRatesParams } from '../api/shipstation'
-import type { LightspeedCart, LightspeedCartItem } from '../types/lightspeed'
+import { ShipStationV1Address, ShipStationV1Dimensions, ShipStationV1Weight } from '../types'
 
 const normalizeWeightUnit = (unit: string): string => {
   const map: Record<string, string> = {
@@ -12,89 +12,21 @@ const normalizeWeightUnit = (unit: string): string => {
   return map[unit] || unit
 }
 
-interface ShipAddress {
-  line1: string
-  line2?: string
-  city?: string
-  province?: string
-  postalCode: string
-  country: string
-  addressResidentialIndicator?: boolean
-}
-
-interface ShipItem {
-  weight: { value: number; unit: string }
-  dimensions: ItemDimensions
-  quantity: number
-  requiresSignature: boolean
-}
-
-interface ItemDimensions {
-  length: number
-  width: number
-  height: number
+interface BodyParams {
+  address: ShipStationV1Address
+  weight: ShipStationV1Weight
+  dimensions: ShipStationV1Dimensions
+  value: number
 }
 
 export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
   const startTime = Date.now()
 
   try {
-    const body = (req.json ? await req.json() : req.body) as any
-    const cart = body.cart as LightspeedCart
-    const toAddress = body.toAddress as ShipAddress
+    const client = (req.payload as any).shipStationClient
+    const body = (req.json ? await req.json() : req.body) as BodyParams
 
-    let cartTotal = 0 as number
-    let items = null as ShipItem[] | null
-
-    // Support cart-based requests
-    if (cart.items && toAddress) {
-      req.payload.logger.info('[ShipStation V1] Cart Items and Address received')
-      console.log('[ShipStation V1] Cart Items and Address received', cart.items)
-
-      if (!cart.items || cart.items.length === 0) {
-        return Response.json(
-          {
-            error: 'Cart not found or empty',
-          },
-          { status: 404 },
-        )
-      }
-
-      // Transform cart items to rate calculation format
-      // Future addition of Lightspeed Ship Details
-      items = cart.items.map((item: LightspeedCartItem) => {
-        let weight = { value: 1, unit: 'kilogram' }
-        if (weight && weight.unit) {
-          weight = { ...weight, unit: normalizeWeightUnit(weight.unit) }
-        }
-
-        const fallbackDimensions = {
-          length: 10,
-          width: 10,
-          height: 10,
-        } as ItemDimensions
-
-        return {
-          weight,
-          dimensions: fallbackDimensions,
-          quantity: item.quantity || 1,
-          requiresSignature: false,
-        }
-      })
-
-      cartTotal = cart.subtotal || 0
-    }
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return Response.json(
-        {
-          error: 'Invalid request: items array is required',
-        },
-        { status: 400 },
-      )
-    }
-
-    if (!toAddress || !toAddress.postalCode || !toAddress.country) {
+    if (!body.address || !body.address.postalCode || !body.address.country) {
       return Response.json(
         {
           error: 'Invalid request: toAddress address with postalCode and country is required',
@@ -102,8 +34,6 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
         { status: 400 },
       )
     }
-
-    const client = (req.payload as any).shipStationClient
 
     if (!client) {
       return Response.json(
@@ -119,8 +49,8 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
     })
 
     // Check if cart qualifies for free shipping
-    const freeShippingThreshold = shippingSettings?.freeShippingThreshold || 0
-    const isFreeShipping = freeShippingThreshold > 0 && cartTotal >= freeShippingThreshold
+    const freeShippingThreshold = shippingSettings?.freeShippingThreshold || 200
+    const isFreeShipping = freeShippingThreshold > 0 && body.value >= freeShippingThreshold
 
     if (isFreeShipping) {
       return Response.json({
@@ -154,28 +84,9 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       })
     }
 
-    // Calculate total weight from all items
-    const totalWeight = items.reduce((sum: number, item: ShipItem) => {
-      const weight = item.weight?.value || 1
-      const quantity = item.quantity || 1
-      return sum + weight * quantity
-    }, 0)
-
-    // Use largest dimensions from items (fallback to settings default)
-    const largestDimensions =
-      items.length > 0
-        ? items.reduce((largest: ItemDimensions, item: ShipItem) => {
-            if (!item.dimensions) return largest
-            const itemVolume =
-              item.dimensions.length * item.dimensions.width * item.dimensions.height
-            const largestVolume = largest.length * largest.width * largest.height
-            return itemVolume > largestVolume ? item.dimensions : largest
-          }, items[0].dimensions)
-        : undefined
-
     const defaultDims = shippingSettings?.defaultPackage?.dimensions
     const effectiveDimensions =
-      largestDimensions ||
+      body.dimensions ||
       (defaultDims
         ? {
             length: defaultDims.length,
@@ -188,17 +99,8 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
     // Get ship from address from settings if available
     //const shipFromPostalCode = shippingSettings?.defaultOriginPostalCode || ''
 
-    // Build ship to address for V1 API
-    const toAddressAddress = {
-      addressLine1: toAddress.line1 || toAddress.line2 || '',
-      city: toAddress.city || '',
-      state: toAddress.province || '',
-      postalCode: toAddress.postalCode || '',
-      country: toAddress.country || 'CA',
-    }
-
     // Validate required address fields for V1
-    if (!toAddressAddress.postalCode || !toAddressAddress.country) {
+    if (!body.address.postalCode || !body.address.country) {
       return Response.json(
         {
           error: 'Destination postalCode and country are required for shipping rate calculation.',
@@ -209,13 +111,12 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
     // toState and toCity are optional for V1; omit validation per instruction
 
     // Build ship from address for V1 API (minimal - just postal code needed for rates)
-    const originPostal = shippingSettings?.defaultOriginPostalCode
     const shipFromAddress = {
       addressLine1: '',
       city: '',
       state: '',
-      postalCode: originPostal || '',
-      country: toAddress.country || 'CA', // Default to same country as toAddress
+      postalCode: shippingSettings?.defaultOriginPostalCode || '',
+      country: 'CA', // Default to same country as toAddress
     }
 
     if (!shipFromAddress.postalCode) {
@@ -230,18 +131,28 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
 
     // Ensure weight present and valid
     const defaultWeight = shippingSettings?.defaultPackage?.weight
-    const firstUnit = items[0]?.weight?.unit || defaultWeight?.unit || 'kilogram'
-    const normalizedUnit = normalizeWeightUnit(firstUnit)
-    const weightValue = totalWeight > 0 ? totalWeight : defaultWeight?.value || 1
+    const weightUnit = body.weight?.units || defaultWeight?.unit || 'grams'
+    const normalizedUnit = normalizeWeightUnit(weightUnit)
+    const weightValue = body.weight?.value || defaultWeight?.value || 1
 
     const getRatesParams = {
-      shipTo: toAddressAddress,
+      shipTo: {
+        addressLine1: body.address.street1 || '',
+        addressLine2: body.address.street2 || '',
+        city: body.address.city || '',
+        state: body.address.state || '',
+        postalCode: body.address.postalCode,
+        country: body.address.country,
+      },
       shipFrom: shipFromAddress,
-      weight: { value: weightValue, unit: normalizedUnit },
+      weight: {
+        value: weightValue,
+        unit: normalizedUnit,
+      },
       dimensions: effectiveDimensions,
       carrierCodes, // V1 API uses carrierCodes
-      requiresSignature: items.some((item) => item.requiresSignature),
-      residential: toAddress.addressResidentialIndicator,
+      //requiresSignature: items.some((item) => item.requiresSignature),
+      //residential: toAddress.addressResidentialIndicator,
     } as GetRatesParams
 
     const rates = await client.getRates(getRatesParams)
