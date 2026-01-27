@@ -2,6 +2,7 @@ import type { Config, Plugin } from 'payload'
 import { ShipStationClient } from './api/shipstation'
 import { getOrdersOverride } from './collections/ordersOverride'
 import { getProductsOverride } from './collections/productsOverride'
+import { transactionsOverride } from './collections/transactionsOverride'
 import { getVariantsOverride } from './collections/variantsOverride'
 import { getShippingEndpoints } from './endpoints'
 import { PickupLocations } from './globals/PickupLocations'
@@ -119,6 +120,10 @@ export const shipStationPlugin =
               ...(ordersOverride.fields || []),
             ],
           }
+        }
+
+        if (collection.slug === 'transactions') {
+          return transactionsOverride(collection)
         }
         
         return collection
