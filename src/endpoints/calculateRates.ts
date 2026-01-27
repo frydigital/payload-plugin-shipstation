@@ -1,6 +1,6 @@
 import type { Endpoint } from 'payload'
 import { GetRatesParams } from '../api/shipstation'
-import { ShipStationV1Address, ShipStationV1Dimensions, ShipStationV1Weight } from '../types'
+import { ShipStationRate, ShipStationV1Address, ShipStationV1Dimensions, ShipStationV1Weight } from '../types'
 
 const normalizeWeightUnit = (unit: string): string => {
   const map: Record<string, string> = {
@@ -20,10 +20,8 @@ interface BodyParams {
 }
 
 export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
-  const startTime = Date.now()
 
   try {
-    const client = (req.payload as any).shipStationClient
     const body = (req.json ? await req.json() : req.body) as BodyParams
 
     if (!body.address || !body.address.postalCode || !body.address.country) {
@@ -35,34 +33,35 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       )
     }
 
-    if (!client) {
-      return Response.json(
-        {
-          error: 'ShipStation client not initialized',
-        },
-        { status: 500 },
-      )
-    }
+
 
     const shippingSettings = await req.payload.findGlobal({
       slug: 'shipping-settings',
     })
 
+    console.log('Calculate Rates - Free Ship Check', shippingSettings.freeShippingThreshold)
+    console.log('Calculate Rates - Free Ship Check - Body Value', body.value)
+
     // Check if cart qualifies for free shipping
-    const freeShippingThreshold = shippingSettings?.freeShippingThreshold || 200
-    const isFreeShipping = freeShippingThreshold > 0 && body.value >= freeShippingThreshold
+    const freeShippingThreshold = shippingSettings?.freeShippingThreshold || 20000
+    // Convert body value to cents (x100)
+    const isFreeShipping = freeShippingThreshold > 0 && body.value * 100 >= freeShippingThreshold
+    console.log('Calculate Rates - Free Ship Check - isFreeShipping?', isFreeShipping)
 
     if (isFreeShipping) {
       return Response.json({
         rates: [
           {
             serviceName: 'Free Shipping',
-            serviceCode: 'FREE',
             carrierCode: 'FREE',
-            shipmentCost: 0,
-            otherCost: 0,
+            carrierId: 'FREE',
+            serviceCode: 'FREE',
+            shippingAmount: {
+              currency: 'CAD',
+              amount: 0
+            },
           },
-        ],
+        ] as ShipStationRate[],
         freeShipping: true,
       })
     }
@@ -89,11 +88,11 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       body.dimensions ||
       (defaultDims
         ? {
-            length: defaultDims.length,
-            width: defaultDims.width,
-            height: defaultDims.height,
-            unit: defaultDims.unit,
-          }
+          length: defaultDims.length,
+          width: defaultDims.width,
+          height: defaultDims.height,
+          unit: defaultDims.unit,
+        }
         : undefined)
 
     // Get ship from address from settings if available
@@ -155,6 +154,19 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       //residential: toAddress.addressResidentialIndicator,
     } as GetRatesParams
 
+
+    const client = (req.payload as any).shipStationClient
+    if (!client) {
+      return Response.json(
+        {
+          error: 'ShipStation client not initialized',
+        },
+        { status: 500 },
+      )
+    }
+
+
+
     const rates = await client.getRates(getRatesParams)
 
     return Response.json({
@@ -162,9 +174,7 @@ export const calculateRatesHandler: Endpoint['handler'] = async (req) => {
       freeShipping: false,
     })
   } catch (err) {
-    const elapsed = Date.now() - startTime
     const error = err as any
-    console.log(`[ShipStation V1] Rate calculation error after ${elapsed}ms: ${error?.message}`)
     console.log(`[ShipStation V1] Error stack: ${error?.stack}`)
 
     // Surface ShipStation V1 error details if present (PascalCase fields)

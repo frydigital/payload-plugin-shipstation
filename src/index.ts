@@ -150,7 +150,7 @@ export const shipStationPlugin =
 
       // Initialize cache if enabled
       if (pluginOptions.cache?.enableCache) {
-        payload.logger.info('ShipStation Plugin: Initializing rate cache...')
+       // payload.logger.info('ShipStation Plugin: Initializing rate cache...')
         const cache = await createRateCache({
           redisUrl: pluginOptions.cache.redisUrl,
           enableCache: pluginOptions.cache.enableCache,
@@ -161,6 +161,7 @@ export const shipStationPlugin =
         payload.shipStationCache = cache
       }
 
+      /**
       // Log plugin configuration
       payload.logger.info('ShipStation Plugin: Initialized successfully')
       payload.logger.info(`  Address Validation: ${pluginOptions.enabledFeatures?.addressValidation ? 'Enabled' : 'Disabled'}`)
@@ -182,6 +183,7 @@ export const shipStationPlugin =
       if (pluginOptions.analytics?.enabled) {
         payload.logger.warn('  Analytics: Configured but not yet available (Phase 2)')
       }
+        **/
     }
 
     return config
