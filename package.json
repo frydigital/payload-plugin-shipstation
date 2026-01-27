@@ -40,14 +40,14 @@
   },
   "dependencies": {
     "date-fns": "^4.1.0",
-    "ioredis": "^5.4.1"
+    "ioredis": "^5.9.2"
   },
   "devDependencies": {
-    "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "^2.1.8",
-    "@vitest/ui": "^4.0.13",
-    "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "@types/node": "25.0.10",
+    "@vitest/coverage-v8": "^4.0.18",
+    "@vitest/ui": "4.0.18",
+    "typescript": "^5.9.3",
+    "vitest": "4.0.18"
   },
   "peerDependencies": {
     "payload": "^3.0.0"
