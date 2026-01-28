@@ -113,10 +113,11 @@ export async function createShipmentForOrder(
 ): Promise<{ success: boolean; shipmentId?: string; orderId?: number; error?: string }> {
   try {
     // Resolve order document
+    const ordersCollection = pluginOptions.ordersCollection || 'orders'
     const order: OrderForShipment = orderDoc
       ? orderDoc
       : ((await payload.findByID({
-          collection: 'orders',
+          collection: ordersCollection as any,
           id: orderId,
         })) as unknown as OrderForShipment)
 
@@ -256,7 +257,7 @@ export async function createShipmentForOrder(
         ? order.total - order.amount
         : undefined)
     await payload.update({
-      collection: 'orders',
+      collection: ordersCollection as any,
       id: orderId,
       data: {
         shippingDetails: {

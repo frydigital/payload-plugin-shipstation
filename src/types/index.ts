@@ -11,6 +11,9 @@ export interface ShipStationPluginOptions {
   /** Core API configuration */
   apiKey: string
   warehouseId: string
+  
+  /** Collection configuration */
+  ordersCollection?: string // Defaults to 'orders', can be overridden (e.g., 'lightspeed-orders')
 
   /** Feature flags */
   enabledFeatures?: {

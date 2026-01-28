@@ -47,9 +47,10 @@ export const createShipmentHandler: Endpoint['handler'] = async (req) => {
 
     if (!result.success) {
       // Update order to manual review status
+      const ordersCollection = pluginOptions.ordersCollection || 'orders'
       try {
         await req.payload.update({
-          collection: 'orders',
+          collection: ordersCollection as any,
           id: orderId,
           data: {
             shippingDetails: {

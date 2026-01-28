@@ -71,6 +71,8 @@ export const shipStationPlugin =
 
     // Extend Products, Variants, and Orders collections with shipping fields
     if (config.collections) {
+      const ordersCollectionSlug = pluginOptions.ordersCollection || 'orders'
+      
       config.collections = config.collections.map((collection) => {
         if (collection.slug === 'products') {
           const productsOverride = getProductsOverride()
@@ -104,7 +106,7 @@ export const shipStationPlugin =
           }
         }
         
-        if (collection.slug === 'orders') {
+        if (collection.slug === ordersCollectionSlug) {
           const ordersOverride = getOrdersOverride()
           return {
             ...collection,
