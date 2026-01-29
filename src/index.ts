@@ -2,6 +2,7 @@ import type { Config, Plugin } from 'payload'
 import { ShipStationClient } from './api/shipstation'
 import { getOrdersOverride } from './collections/ordersOverride'
 import { getProductsOverride } from './collections/productsOverride'
+import { transactionsOverride } from './collections/transactionsOverride'
 import { getVariantsOverride } from './collections/variantsOverride'
 import { getShippingEndpoints } from './endpoints'
 import { PickupLocations } from './globals/PickupLocations'
@@ -70,6 +71,8 @@ export const shipStationPlugin =
 
     // Extend Products, Variants, and Orders collections with shipping fields
     if (config.collections) {
+      const ordersCollectionSlug = pluginOptions.ordersCollection || 'orders'
+      
       config.collections = config.collections.map((collection) => {
         if (collection.slug === 'products') {
           const productsOverride = getProductsOverride()
@@ -103,7 +106,7 @@ export const shipStationPlugin =
           }
         }
         
-        if (collection.slug === 'orders') {
+        if (collection.slug === ordersCollectionSlug) {
           const ordersOverride = getOrdersOverride()
           return {
             ...collection,
@@ -119,6 +122,10 @@ export const shipStationPlugin =
               ...(ordersOverride.fields || []),
             ],
           }
+        }
+
+        if (collection.slug === 'transactions') {
+          return transactionsOverride(collection)
         }
         
         return collection
@@ -150,7 +157,7 @@ export const shipStationPlugin =
 
       // Initialize cache if enabled
       if (pluginOptions.cache?.enableCache) {
-        payload.logger.info('ShipStation Plugin: Initializing rate cache...')
+       // payload.logger.info('ShipStation Plugin: Initializing rate cache...')
         const cache = await createRateCache({
           redisUrl: pluginOptions.cache.redisUrl,
           enableCache: pluginOptions.cache.enableCache,
@@ -161,6 +168,7 @@ export const shipStationPlugin =
         payload.shipStationCache = cache
       }
 
+      /**
       // Log plugin configuration
       payload.logger.info('ShipStation Plugin: Initialized successfully')
       payload.logger.info(`  Address Validation: ${pluginOptions.enabledFeatures?.addressValidation ? 'Enabled' : 'Disabled'}`)
@@ -182,6 +190,7 @@ export const shipStationPlugin =
       if (pluginOptions.analytics?.enabled) {
         payload.logger.warn('  Analytics: Configured but not yet available (Phase 2)')
       }
+        **/
     }
 
     return config

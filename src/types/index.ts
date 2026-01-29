@@ -11,6 +11,9 @@ export interface ShipStationPluginOptions {
   /** Core API configuration */
   apiKey: string
   warehouseId: string
+  
+  /** Collection configuration */
+  ordersCollection?: string // Defaults to 'orders', can be overridden (e.g., 'lightspeed-orders')
 
   /** Feature flags */
   enabledFeatures?: {
@@ -79,7 +82,13 @@ export interface AddressValidationResult {
 
 export type WeightUnit = 'ounce' | 'pound' | 'gram' | 'kilogram'
 export type DimensionUnit = 'inch' | 'centimeter'
-export type ShippingClass = 'standard' | 'expedited' | 'fragile' | 'oversized' | 'pickup-only' | 'custom'
+export type ShippingClass =
+  | 'standard'
+  | 'expedited'
+  | 'fragile'
+  | 'oversized'
+  | 'pickup-only'
+  | 'custom'
 export type ShippingMethod = 'shipping' | 'pickup'
 
 export interface Weight {
@@ -100,7 +109,7 @@ export interface ProductShippingDetails {
   shippingClass?: ShippingClass
   requiresSignature?: boolean
   hazardousMaterials?: boolean
-  
+
   /** Phase 2: International fields */
   customsValue?: number
   hsCode?: string
@@ -121,20 +130,20 @@ export interface ShipStationRate {
   serviceCode: string
   serviceName?: string
   serviceType?: string
-  
+
   shippingAmount: MoneyAmount
   insuranceAmount?: MoneyAmount
   confirmationAmount?: MoneyAmount
   otherAmount?: MoneyAmount
-  
+
   deliveryDays?: number
   estimatedDeliveryDate?: string
   carrierDeliveryDays?: string
   shipDate?: string
-  
+
   guaranteedService?: boolean
   trackable?: boolean
-  
+
   validationStatus?: 'valid' | 'has_warnings' | 'invalid'
   warningMessages?: string[]
 }
@@ -338,7 +347,7 @@ export interface OrderShippingDetails {
   shipmentStatus?: ShipmentStatus
   shippingCost?: ShippingCostBreakdown
   trackingHistory?: TrackingUpdate[]
-  
+
   /** Phase 2: International fields */
   customsFormUrl?: string
   dutyAmount?: number
@@ -666,24 +675,7 @@ export interface ShipStationV1Shipment {
   dimensions?: ShipStationV1Dimensions
   insuranceOptions?: ShipStationV1InsuranceOptions
   advancedOptions?: ShipStationV1AdvancedOptions
-  shipmentItems?: Array<{
-    orderItemId?: number
-    lineItemKey?: string
-    sku?: string
-    name?: string
-    imageUrl?: string
-    weight?: ShipStationV1Weight
-    quantity?: number
-    unitPrice?: number
-    taxAmount?: number
-    shippingAmount?: number
-    warehouseLocation?: string
-    options?: Array<{ name: string; value: string }>
-    productId?: number
-    fulfillmentSku?: string
-    adjustment?: boolean
-    upc?: string
-  }>
+  shipmentItems?: ShipStationV1OrderItem[]
   labelData?: string
   formData?: string
 }
@@ -732,7 +724,7 @@ export interface ShipStationV1Warehouse {
 // These types are deprecated since v0.3.0 and will be removed in v1.0.0
 // ============================================================================
 
-/** 
+/**
  * @deprecated since v0.3.0, will be removed in v1.0.0
  * Use ShipStationV1Address instead
  */
@@ -750,9 +742,9 @@ export interface ShipStationAddress {
   address_residential_indicator?: 'yes' | 'no' | 'unknown'
 }
 
-/** 
+/**
  * @deprecated since v0.3.0, will be removed in v1.0.0
- * Use ShipStationV1Weight instead 
+ * Use ShipStationV1Weight instead
  */
 export interface ShipStationPackage {
   weight: {
@@ -767,9 +759,9 @@ export interface ShipStationPackage {
   }
 }
 
-/** 
+/**
  * @deprecated since v0.3.0, will be removed in v1.0.0
- * V2 API types - kept for backward compatibility 
+ * V2 API types - kept for backward compatibility
  */
 export interface ShipStationShipment {
   shipmentId?: string
@@ -787,9 +779,9 @@ export interface ShipStationShipment {
   validateAddress?: 'no_validation' | 'validate_only' | 'validate_and_clean'
 }
 
-/** 
+/**
  * @deprecated since v0.3.0, will be removed in v1.0.0
- * Use ShipStationV1AdvancedOptions instead 
+ * Use ShipStationV1AdvancedOptions instead
  */
 export interface ShipStationAdvancedOptions {
   billToAccount?: string
@@ -804,9 +796,9 @@ export interface ShipStationAdvancedOptions {
   dryIceWeight?: Weight
 }
 
-/** 
+/**
  * @deprecated since v0.3.0, will be removed in v1.0.0
- * V2 API type 
+ * V2 API type
  */
 export interface ShipStationRateRequest {
   shipment?: ShipStationShipment
@@ -818,9 +810,9 @@ export interface ShipStationRateRequest {
   }
 }
 
-/** 
+/**
  * @deprecated since v0.3.0, will be removed in v1.0.0
- * V2 API type 
+ * V2 API type
  */
 export interface ShipStationRateResponse {
   rateResponse: {
@@ -835,9 +827,9 @@ export interface ShipStationRateResponse {
   shipment: ShipStationShipment
 }
 
-/** 
+/**
  * @deprecated since v0.3.0, will be removed in v1.0.0
- * V2 API type 
+ * V2 API type
  */
 export interface ShipStationCalculateRatesRequest {
   rate_options: {
@@ -850,25 +842,13 @@ export interface ShipStationCalculateRatesRequest {
   }
   shipment: {
     validate_address?: 'no_validation' | 'validate_only' | 'validate_and_clean'
-    ship_to: ShipStationAddress
-    ship_from?: ShipStationAddress
+    ship_to: ShipStationV1Address
+    ship_from?: ShipStationV1Address
     warehouse_id?: string
-    packages: ShipStationPackage[]
+    packages: ShipStationV1Weight[]
     confirmation?: 'none' | 'delivery' | 'signature' | 'adult_signature' | 'direct_signature'
   }
 }
-
-/**
- * Request type for creating orders in ShipStation
- * Now uses V1 API format internally
- */
-export interface ShipStationCreateOrderRequest extends ShipStationV1CreateOrderRequest {}
-
-/**
- * Response type from creating orders in ShipStation
- * Now uses V1 API format internally
- */
-export interface ShipStationCreateOrderResponse extends ShipStationV1OrderResponse {}
 
 /** @deprecated V2 API type - use ShipStationCreateOrderRequest instead */
 export interface ShipStationCreateShipmentRequest {
