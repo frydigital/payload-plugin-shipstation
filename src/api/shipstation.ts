@@ -1,15 +1,15 @@
 import type {
   Dimensions,
   ShipStationCarrier,
-  ShipStationCreateOrderRequest,
-  ShipStationCreateOrderResponse,
   ShipStationError as ShipStationErrorType,
   ShipStationRate,
   ShipStationV1Address,
   ShipStationV1CreateLabelRequest,
   ShipStationV1CreateLabelResponse,
+  ShipStationV1CreateOrderRequest,
   ShipStationV1Dimensions,
   ShipStationV1GetRatesRequest,
+  ShipStationV1OrderResponse,
   ShipStationV1RateResponse,
   ShipStationV1Service,
   ShipStationV1Shipment,
@@ -45,12 +45,23 @@ interface ShipStationClientConfig {
   retryDelay?: number
 }
 
+export interface GetRatesParams {
+  shipTo: ShippingAddress
+  shipFrom?: ShippingAddress
+  weight: Weight
+  dimensions?: Dimensions
+  carrierCodes?: string[]
+  serviceCode?: string
+  requiresSignature?: boolean
+  residential?: boolean
+}
+
 /**
  * ShipStation V1 API Client
- * 
+ *
  * Uses the V1 API (https://ssapi.shipstation.com)
  * Documentation: https://www.shipstation.com/docs/api/
- * 
+ *
  * Authentication: Basic Auth with API Key:Secret
  */
 export class ShipStationClient {
@@ -75,7 +86,8 @@ export class ShipStationClient {
     }
     this.warehouseId = config.warehouseId
     // V1 API base URL
-    this.baseUrl = config.apiUrl || process.env.SHIPSTATION_API_URL || 'https://ssapi.shipstation.com'
+    this.baseUrl =
+      config.apiUrl || process.env.SHIPSTATION_API_URL || 'https://ssapi.shipstation.com'
     this.maxRetries = config.maxRetries || 3
     this.retryDelay = config.retryDelay || 1000
   }
@@ -142,22 +154,14 @@ export class ShipStationClient {
   /**
    * Get shipping rates from ShipStation V1 API
    * https://www.shipstation.com/docs/api/shipments/get-rates/
-   * 
+   *
    * Note: V1 API requires a carrier code for each rate request (unlike V2 which accepted multiple carrier_ids)
    * If carrierCodes array is provided, will make multiple requests and combine results
    */
-  async getRates(params: {
-    shipTo: ShippingAddress
-    shipFrom?: ShippingAddress
-    weight: Weight
-    dimensions?: Dimensions
-    carrierCodes?: string[]
-    serviceCode?: string
-    requiresSignature?: boolean
-    residential?: boolean
-  }): Promise<ShipStationRate[]> {
+
+  async getRates(params: GetRatesParams): Promise<ShipStationRate[]> {
     console.log('🚀 [ShipStation V1] getRates called with params:', JSON.stringify(params, null, 2))
-    
+
     const carrierCodes = params.carrierCodes || []
     if (carrierCodes.length === 0) {
       console.warn('⚠️ [ShipStation V1] No carrier codes provided - cannot fetch rates')
@@ -187,14 +191,14 @@ export class ShipStationClient {
         const requestBody: ShipStationV1GetRatesRequest = {
           carrierCode,
           fromPostalCode: fromPostalCode || 'V8E0Y2', // Fallback if not provided
-          toCountry: params.shipTo.country,
+          toCountry: params.shipTo.country || 'CA', // Fallback
           toPostalCode: params.shipTo.postalCode,
           weight,
           dimensions,
           confirmation: params.requiresSignature ? 'signature' : 'none',
           residential: params.residential,
         }
-            // Removed toState and toCity as per user instruction
+        // Removed toState and toCity as per user instruction
 
         if (params.serviceCode) {
           requestBody.serviceCode = params.serviceCode
@@ -204,7 +208,11 @@ export class ShipStationClient {
         console.log(`📤 [ShipStation V1] POST ${url} for carrier ${carrierCode}`)
         console.log('📤 [ShipStation V1] Request Body:', JSON.stringify(requestBody, null, 2))
 
-        const response = await this.makeRequest<ShipStationV1RateResponse[]>('POST', url, requestBody)
+        const response = await this.makeRequest<ShipStationV1RateResponse[]>(
+          'POST',
+          url,
+          requestBody,
+        )
         console.log('📥 [ShipStation V1] Response:', JSON.stringify(response, null, 2))
 
         // V1 API returns an array of rates directly
@@ -255,7 +263,7 @@ export class ShipStationClient {
     errors?: string[]
   }> {
     const url = `${this.baseUrl}/addresses/validate`
-    
+
     const requestBody: ShipStationV1ValidateAddressRequest = {
       name: address.name,
       company: address.company,
@@ -273,14 +281,18 @@ export class ShipStationClient {
       console.log('📤 [ShipStation V1] POST', url)
       console.log('📤 [ShipStation V1] Request Body:', JSON.stringify(requestBody, null, 2))
 
-      const response = await this.makeRequest<ShipStationV1ValidateAddressResponse>('POST', url, requestBody)
+      const response = await this.makeRequest<ShipStationV1ValidateAddressResponse>(
+        'POST',
+        url,
+        requestBody,
+      )
       console.log('📥 [ShipStation V1] Response:', JSON.stringify(response, null, 2))
 
       return {
         isValid: response.valid === true,
         normalizedAddress: response.address,
-        warnings: response.messages?.filter(m => !m.toLowerCase().includes('error')),
-        errors: response.messages?.filter(m => m.toLowerCase().includes('error')),
+        warnings: response.messages?.filter((m) => !m.toLowerCase().includes('error')),
+        errors: response.messages?.filter((m) => m.toLowerCase().includes('error')),
       }
     } catch (error) {
       console.error('❌ [ShipStation V1] validateAddress error:', error)
@@ -294,13 +306,11 @@ export class ShipStationClient {
   /**
    * Create or update an order in ShipStation V1 API
    * https://www.shipstation.com/docs/api/orders/create-update-order/
-   * 
+   *
    * This replaces the V2 createShipment method. In V1, you create orders first,
    * then create labels/shipments from those orders.
    */
-  async createOrder(
-    request: ShipStationCreateOrderRequest
-  ): Promise<ShipStationCreateOrderResponse> {
+  async createOrder(request: ShipStationV1CreateOrderRequest): Promise<ShipStationV1OrderResponse> {
     const url = `${this.baseUrl}/orders/createorder`
 
     console.log('🔥 [ShipStation V1] createOrder called')
@@ -309,7 +319,7 @@ export class ShipStationClient {
     console.log('🔥 [ShipStation V1] Request Body:', JSON.stringify(request, null, 2))
 
     try {
-      const response = await this.makeRequest<ShipStationCreateOrderResponse>('POST', url, request)
+      const response = await this.makeRequest<ShipStationV1OrderResponse>('POST', url, request)
       console.log('📥 [ShipStation V1] createOrder Response:', JSON.stringify(response, null, 2))
       return response
     } catch (error) {
@@ -322,11 +332,11 @@ export class ShipStationClient {
    * Get an order from ShipStation V1 API
    * https://www.shipstation.com/docs/api/orders/get-order/
    */
-  async getOrder(orderId: number): Promise<ShipStationCreateOrderResponse> {
+  async getOrder(orderId: number): Promise<ShipStationV1OrderResponse> {
     const url = `${this.baseUrl}/orders/${orderId}`
 
     try {
-      const response = await this.makeRequest<ShipStationCreateOrderResponse>('GET', url)
+      const response = await this.makeRequest<ShipStationV1OrderResponse>('GET', url)
       return response
     } catch (error) {
       throw this.handleError(error, 'Failed to get order')
@@ -352,7 +362,9 @@ export class ShipStationClient {
    * Create a shipping label for an order
    * https://www.shipstation.com/docs/api/shipments/create-label/
    */
-  async createLabel(params: ShipStationV1CreateLabelRequest): Promise<ShipStationV1CreateLabelResponse> {
+  async createLabel(
+    params: ShipStationV1CreateLabelRequest,
+  ): Promise<ShipStationV1CreateLabelResponse> {
     const url = `${this.baseUrl}/shipments/createlabel`
 
     console.log('🔥 [ShipStation V1] createLabel called')
@@ -453,11 +465,27 @@ export class ShipStationClient {
    * List packages available for a specific carrier
    * https://www.shipstation.com/docs/api/carriers/list-packages/
    */
-  async listCarrierPackages(carrierCode: string): Promise<Array<{ carrierCode: string; code: string; name: string; domestic: boolean; international: boolean }>> {
+  async listCarrierPackages(carrierCode: string): Promise<
+    Array<{
+      carrierCode: string
+      code: string
+      name: string
+      domestic: boolean
+      international: boolean
+    }>
+  > {
     const url = `${this.baseUrl}/carriers/listpackages?carrierCode=${encodeURIComponent(carrierCode)}`
 
     try {
-      const response = await this.makeRequest<Array<{ carrierCode: string; code: string; name: string; domestic: boolean; international: boolean }>>('GET', url)
+      const response = await this.makeRequest<
+        Array<{
+          carrierCode: string
+          code: string
+          name: string
+          domestic: boolean
+          international: boolean
+        }>
+      >('GET', url)
       return response || []
     } catch (error) {
       throw this.handleError(error, `Failed to list packages for carrier ${carrierCode}`)
@@ -468,7 +496,10 @@ export class ShipStationClient {
    * Get tracking information
    * https://www.shipstation.com/docs/api/shipments/get/
    */
-  async getTracking(trackingNumber: string, carrierCode?: string): Promise<ShipStationV1Shipment | null> {
+  async getTracking(
+    trackingNumber: string,
+    carrierCode?: string,
+  ): Promise<ShipStationV1Shipment | null> {
     let url = `${this.baseUrl}/shipments?trackingNumber=${encodeURIComponent(trackingNumber)}`
     if (carrierCode) {
       url += `&carrierCode=${encodeURIComponent(carrierCode)}`
@@ -522,14 +553,14 @@ export class ShipStationClient {
   private async makeRequest<T>(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     url: string,
-    body?: unknown
+    body?: unknown,
   ): Promise<T> {
     // V1 API uses Basic Auth with API Key:Secret
     const authString = Buffer.from(`${this.apiKey}:${this.apiSecret}`).toString('base64')
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Authorization': `Basic ${authString}`,
+      Authorization: `Basic ${authString}`,
     }
 
     const options: RequestInit = {
@@ -550,16 +581,21 @@ export class ShipStationClient {
         console.log(`🔥 [ShipStation V1 API] Attempt ${attempt + 1}: Fetching ${url}`)
         // Log a masked curl for easy reproduction
         try {
-          const maskedAuth = authString.length > 10 ? `${authString.slice(0, 5)}***${authString.slice(-5)}` : '***'
+          const maskedAuth =
+            authString.length > 10 ? `${authString.slice(0, 5)}***${authString.slice(-5)}` : '***'
           const curlBody = body ? ` -d '${JSON.stringify(body)}'` : ''
-          console.log(`🧪 cURL: curl -X ${method} '${url}' -H 'Content-Type: application/json' -H 'Authorization: Basic ${maskedAuth}'${curlBody}`)
+          console.log(
+            `🧪 cURL: curl -X ${method} '${url}' -H 'Content-Type: application/json' -H 'Authorization: Basic ${maskedAuth}'${curlBody}`,
+          )
         } catch {}
 
         let response: Response
         try {
           console.log(`🔥 [ShipStation V1 API] About to call fetch()...`)
           response = await fetch(url, options)
-          console.log(`✅ [ShipStation V1 API] Fetch completed! Status: ${response.status} ${response.statusText}`)
+          console.log(
+            `✅ [ShipStation V1 API] Fetch completed! Status: ${response.status} ${response.statusText}`,
+          )
         } catch (fetchError) {
           console.error(`❌ [ShipStation V1 API] FETCH THREW ERROR:`, fetchError)
           console.error(`❌ [ShipStation V1 API] Error name: ${(fetchError as Error).name}`)
@@ -576,20 +612,27 @@ export class ShipStationClient {
           let errorData: unknown
           try {
             errorData = JSON.parse(errorBody)
-            console.error(`❌ [ShipStation V1 API] Parsed Error:`, JSON.stringify(errorData, null, 2))
+            console.error(
+              `❌ [ShipStation V1 API] Parsed Error:`,
+              JSON.stringify(errorData, null, 2),
+            )
           } catch {
             errorData = { Message: errorBody }
           }
 
           // Handle ShipStation V1 API error format (uses PascalCase)
           if (errorData) {
-            const data = errorData as { Message?: string; ExceptionMessage?: string; message?: string }
+            const data = errorData as {
+              Message?: string
+              ExceptionMessage?: string
+              message?: string
+            }
 
             throw new ShipStationError(
               data.Message || data.ExceptionMessage || data.message || `HTTP ${response.status}`,
               `HTTP_${response.status}`,
               response.status,
-              errorData
+              errorData,
             )
           }
         }
@@ -612,7 +655,7 @@ export class ShipStationClient {
         // Retry on network errors or 5xx errors
         if (attempt < this.maxRetries) {
           const delay = this.retryDelay * Math.pow(2, attempt) // Exponential backoff
-          await new Promise(resolve => setTimeout(resolve, delay))
+          await new Promise((resolve) => setTimeout(resolve, delay))
           continue
         }
 
@@ -629,12 +672,7 @@ export class ShipStationClient {
     }
 
     if (error instanceof Error) {
-      return new ShipStationError(
-        `${message}: ${error.message}`,
-        'UNKNOWN_ERROR',
-        undefined,
-        error
-      )
+      return new ShipStationError(`${message}: ${error.message}`, 'UNKNOWN_ERROR', undefined, error)
     }
 
     return new ShipStationError(message, 'UNKNOWN_ERROR')
